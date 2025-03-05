@@ -21,8 +21,7 @@
 # For instance, "example:Yoyo.blend" refers to "volumes/e66.../Yoyo.blend" in the
 # package directory
 volumes:
-  example: 'e66b164e-8796-48aa-8597-636d85bec240'
-  #example: local
+  example: '05172bac-03c6-4151-bfb9-870766b1b1e0'
 
 # Define objects.
 objects:
