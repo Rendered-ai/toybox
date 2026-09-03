@@ -1,0 +1,28 @@
+schemas:
+  Multiply:
+    alias: Multiply
+    help: toybox/Multiply.md
+    inputs:
+    - name: Input A
+      description: First number to multiply
+      default: 1
+      validation:
+        oneOf:
+          - type: number
+          - numLinks: one
+    - name: Input B
+      description: Second number to multiply
+      default: 1
+      validation:
+        oneOf:
+          - type: number
+          - numLinks: one
+    outputs:
+    - name: Product
+      description: The product of Input A and Input B
+      validation:
+        numLinks: oneOrMany
+    tooltip: Multiplies two numbers together and outputs the product.
+    category: Math
+    subcategory: Scalar
+    color: "#EEEEEE"

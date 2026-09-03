@@ -1,0 +1,213 @@
+# Copyright 2019-2022 DADoES, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License in the root directory in the "LICENSE" file or at:
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+schemas:
+  CameraNode:
+    alias: Procedural Camera
+    help: toybox/ProceduralCamera.md
+    inputs:
+    - name: Location Height (m)
+      default: 0.5
+      description: Camera altitude in metres. The XY position is randomised on a hemisphere of this radius, constraining elevation to >= 45 degrees so the camera always looks down.
+      validation:
+        oneOf:
+          - type: float
+          - numLinks: one
+    - name: Roll (degrees)
+      default: 0
+      description: Rotation about the camera's forward axis in degrees.
+      validation:
+        oneOf:
+          - type: float
+          - numLinks: one
+    - name: Look At
+      description: World-space point the camera aims at as [X, Y, Z] in metres. Default [0, 0, 0] (world origin). Set to the scene center for non-origin-centered blend file scenes. Parsed as a string list matching Blender's location convention. (Legacy 'Look At X'/'Look At Y'/'Look At Z' scalar ports are still accepted at runtime for back-compat.)
+      default: "[0, 0, 0]"
+      validation:
+        oneOf:
+          - type: array
+            items:
+              type: number
+              minimum: -10000.0
+              maximum: 10000.0
+            minItems: 3
+            maxItems: 3
+          - numLinks: one
+    outputs:
+    - name: Camera
+      description: The created Blender camera object, to be wired into a Blend File Scene or Render node.
+    tooltip: Procedural top-down-ish camera for scenes with objects near the world origin. Randomly places the camera on a hemisphere at the given height (elevation always >= 45 degrees) and aims it at the specified look-at point. Suitable for both Procedural Scene and origin-centered Blend File Scene workflows; for scenes whose geometry is far from origin, use Outdoor Camera or Parameterized Camera.
+    category: Simulation
+    subcategory: Cameras
+    color: "#24B324"
+
+  OutdoorCameraClass:
+    alias: Outdoor Camera
+    help: toybox/OutdoorCamera.md
+    inputs:
+    - name: Camera Angle
+      description: Named viewpoint for scene framing. Random picks one of the four uniformly.
+      default: <random>
+      select:
+        - <random>
+        - Overhead
+        - Side
+        - Corner
+        - Entrance
+      validation:
+        type: string
+    - name: Distance to Center (m)
+      description: Distance from the world origin at which to position the camera.
+      default: 8.0
+      validation:
+        oneOf:
+          - type: number
+            minimum: 0.1
+            maximum: 5000.0
+          - numLinks: one
+    - name: Focal Length (mm)
+      description: Camera lens focal length. Lower values give a wider field of view (wide-angle), higher values give a narrower telephoto field of view.
+      default: 50.0
+      validation:
+        oneOf:
+          - type: number
+            minimum: 10.0
+            maximum: 200.0
+          - numLinks: one
+    - name: Look At
+      description: World-space point the camera aims at as [X, Y, Z] in metres. Default [0, 0, 0] (world origin). Set to the scene center for non-origin-centered blend file scenes. Parsed as a string list matching Blender's location convention.
+      default: "[0, 0, 0]"
+      validation:
+        oneOf:
+          - type: array
+            items:
+              type: number
+              minimum: -10000.0
+              maximum: 10000.0
+            minItems: 3
+            maxItems: 3
+          - numLinks: one
+    outputs:
+    - name: Camera
+      description: Camera object to be wired into a Blend File Scene node.
+    tooltip: Procedural camera for large outdoor / unbounded scenes. Positions the camera at a named angle (Overhead / Side / Corner / Entrance) around a configurable look-at point at a user-specified distance and focal length.
+    category: Simulation
+    subcategory: Cameras
+    color: "#24B324"
+
+  ParameterizedCameraClass:
+    alias: Parameterized Camera
+    help: toybox/ParameterizedCamera.md
+    inputs:
+    - name: Camera X
+      description: Camera X coordinate in world-space meters.
+      default: 0.0
+      validation:
+        oneOf:
+          - type: number
+            minimum: -10000.0
+            maximum: 10000.0
+          - numLinks: one
+    - name: Camera Y
+      description: Camera Y coordinate in world-space meters.
+      default: -5.0
+      validation:
+        oneOf:
+          - type: number
+            minimum: -10000.0
+            maximum: 10000.0
+          - numLinks: one
+    - name: Camera Z
+      description: Camera Z (height) coordinate in world-space meters.
+      default: 2.0
+      validation:
+        oneOf:
+          - type: number
+            minimum: -1000.0
+            maximum: 5000.0
+          - numLinks: one
+    - name: Look At X
+      description: X coordinate of the point the camera aims at.
+      default: 0.0
+      validation:
+        oneOf:
+          - type: number
+            minimum: -10000.0
+            maximum: 10000.0
+          - numLinks: one
+    - name: Look At Y
+      description: Y coordinate of the point the camera aims at.
+      default: 0.0
+      validation:
+        oneOf:
+          - type: number
+            minimum: -10000.0
+            maximum: 10000.0
+          - numLinks: one
+    - name: Look At Z
+      description: Z coordinate of the point the camera aims at.
+      default: 0.0
+      validation:
+        oneOf:
+          - type: number
+            minimum: -1000.0
+            maximum: 5000.0
+          - numLinks: one
+    - name: Focal Length (mm)
+      description: Camera lens focal length. Lower values give a wider field of view, higher values give a narrower telephoto field of view.
+      default: 50.0
+      validation:
+        oneOf:
+          - type: number
+            minimum: 10.0
+            maximum: 200.0
+          - numLinks: one
+    - name: Roll (degrees)
+      description: Rotation around the camera's forward (look-at) axis, in degrees. 0 keeps the horizon level; positive values tilt the frame clockwise as seen through the lens.
+      default: 0.0
+      validation:
+        oneOf:
+          - type: number
+            minimum: -180.0
+            maximum: 180.0
+          - numLinks: one
+    - name: Aperture (f-stop)
+      description: >
+        Depth-of-field aperture in f-stops. 0 disables DOF. Smaller values
+        give shallower depth of field; larger values keep more in focus.
+      default: 0.0
+      validation:
+        oneOf:
+          - type: number
+            minimum: 0.0
+            maximum: 32.0
+          - numLinks: one
+    - name: Focus Distance (m)
+      description: >
+        Distance to the plane of focus, in metres. Only applied when
+        Aperture (f-stop) > 0. Leave at 0 to use the camera-to-look-at
+        distance.
+      default: 0.0
+      validation:
+        oneOf:
+          - type: number
+            minimum: 0.0
+            maximum: 1000.0
+          - numLinks: one
+    outputs:
+    - name: Camera
+      description: Camera object to be wired into a Blend File Scene node.
+    tooltip: Full-manual camera. Specify the exact position, the exact look-at target, the focal length, and an optional roll. Escape-hatch for BYO-blend scenes where Outdoor Camera angles don't fit.
+    category: Simulation
+    subcategory: Cameras
+    color: "#24B324"

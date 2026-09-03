@@ -1,0 +1,278 @@
+# avatar_hdri_indoor_test.yml -- Avatar diversity + HDRI backdrop
+#
+# Workflow: single-still portraits of one random avatar per run in a
+# random indoor scene. Showcases:
+#   * Avatar Randomizer as source-picker -- demographic-filtered pool
+#     (Gender: female today) reads ASSET_STANDARDS §3.4 ana_* from
+#     sibling sidecars and picks one avatar per run. Pool of 4 today
+#     (Business, Chef, Female_Adult, Medical). Height output feeds
+#     Camera Look At Z so framing tracks the picked rig's geometry.
+#   * Avatar Pose oneOrMany on Pose File -- Idle and Talk clips both
+#     wired, each run draws a random pose. Combined with a Random
+#     Integer on the Frame input, the same clip gives frame-level
+#     variety (Talk gesticulation cycle is 821 frames long).
+#   * Procedural Scene oneOrMany on HDRI -- 4 indoor HDRIs wired, one
+#     picked per run. Plus Random Uniform on HDRI Rotation (deg) so
+#     the sun angle isn't locked to the picked HDRI's baked orientation.
+#   * Manual Placement jitter -- Vector3D fed by Random Uniform on X, Y
+#     for +/-0.5 m origin scatter, and by Random Uniform on Z for
+#     heading (-90 deg +/- 45 deg) so the avatar isn't camera-frontal
+#     every run.
+#   * HDRI-mode auto-tweaks (Filmic view transform, 64-sample preview,
+#     OIDN denoiser, 0.5 px pixel blur) fire in Procedural Scene when
+#     HDRI is wired -- no explicit config here.
+nodes:
+  # --- Pool + Randomizer (column 0-1) ----------------------------------
+  VolumeDirectory_AvatarPool:
+    nodeClass: VolumeDirectory
+    name: VolumeDirectory_AvatarPool
+    links: {}
+    values:
+      Directory: "708b0ca9-d81c-4679-b164-141418507830:/RocketboxAvatars"
+    location: {x: 0, y: 0}
+
+  AvatarRandomizer_1:
+    nodeClass: Avatar Randomizer
+    name: AvatarRandomizer_1
+    links:
+      Avatar Pool:
+        - outputPort: Directory
+          sourceNode: VolumeDirectory_AvatarPool
+    values:
+      Gender: female
+      Clothing: any
+      Setting: any
+    location: {x: 500, y: 0}
+
+  # --- HDRI oneOrMany pool (column 0) ----------------------------------
+  VolumeFile_HDRI_1:
+    nodeClass: VolumeFile
+    name: VolumeFile_HDRI_1
+    links: {}
+    values:
+      File: "708b0ca9-d81c-4679-b164-141418507830:/HDRIs/Poly Haven/Indoor/phone_shop_8k.hdr"
+    location: {x: 0, y: 400}
+
+  VolumeFile_HDRI_2:
+    nodeClass: VolumeFile
+    name: VolumeFile_HDRI_2
+    links: {}
+    values:
+      File: "708b0ca9-d81c-4679-b164-141418507830:/HDRIs/Poly Haven/Indoor/decor_shop_8k.hdr"
+    location: {x: 0, y: 800}
+
+  VolumeFile_HDRI_3:
+    nodeClass: VolumeFile
+    name: VolumeFile_HDRI_3
+    links: {}
+    values:
+      File: "708b0ca9-d81c-4679-b164-141418507830:/HDRIs/Poly Haven/Indoor/bush_restaurant_8k.hdr"
+    location: {x: 0, y: 1200}
+
+  VolumeFile_HDRI_4:
+    nodeClass: VolumeFile
+    name: VolumeFile_HDRI_4
+    links: {}
+    values:
+      File: "708b0ca9-d81c-4679-b164-141418507830:/HDRIs/Poly Haven/Indoor/hospital_room_8k.hdr"
+    location: {x: 0, y: 1600}
+
+  # --- Pose oneOrMany pool (column 0) ----------------------------------
+  VolumeFile_Pose_Idle:
+    nodeClass: VolumeFile
+    name: VolumeFile_Pose_Idle
+    links: {}
+    values:
+      File: "708b0ca9-d81c-4679-b164-141418507830:/RocketboxAnimations/Idle/f_idle_breathe_01.fbx"
+    location: {x: 0, y: 2000}
+
+  VolumeFile_Pose_Talk:
+    nodeClass: VolumeFile
+    name: VolumeFile_Pose_Talk
+    links: {}
+    values:
+      File: "708b0ca9-d81c-4679-b164-141418507830:/RocketboxAnimations/Talk/f_gestic_talk_neutral_01.fbx"
+    location: {x: 0, y: 2400}
+
+  # --- Random generators (column 1) ------------------------------------
+  # Talk (821 frames) opens with a T-pose ramp-in; deeper frames show
+  # gesticulation. Idle (81 frames) clamps at end.
+  RandomFrame:
+    nodeClass: Random Integer
+    name: RandomFrame
+    links: {}
+    values:
+      low: 1
+      high: 800
+    location: {x: 500, y: 2200}
+
+  RandomAzimuth:
+    nodeClass: Random Uniform
+    name: RandomAzimuth
+    links: {}
+    values:
+      low: 0.0
+      high: 360.0
+    location: {x: 500, y: 400}
+
+  RandomJitterX:
+    nodeClass: Random Uniform
+    name: RandomJitterX
+    links: {}
+    values:
+      low: -0.5
+      high: 0.5
+    location: {x: 500, y: 1200}
+
+  RandomJitterY:
+    nodeClass: Random Uniform
+    name: RandomJitterY
+    links: {}
+    values:
+      low: -0.5
+      high: 0.5
+    location: {x: 500, y: 1600}
+
+  RandomHeadingJitter:
+    nodeClass: Random Uniform
+    name: RandomHeadingJitter
+    links: {}
+    values:
+      low: -135.0
+      high: -45.0
+    location: {x: 500, y: 2600}
+
+  # --- Convert + Pose (columns 2-3) ------------------------------------
+  Convert_1:
+    nodeClass: Avatar Convert
+    name: Convert_1
+    links:
+      Avatar File:
+        - outputPort: Avatar File
+          sourceNode: AvatarRandomizer_1
+    values:
+      Rest Pose: T-Pose
+      Gender: Female
+    location: {x: 1000, y: 0}
+
+  Pose_1:
+    nodeClass: Avatar Pose
+    name: Pose_1
+    links:
+      Character Generator:
+        - outputPort: Object Generator
+          sourceNode: Convert_1
+      Pose File:
+        - outputPort: File
+          sourceNode: VolumeFile_Pose_Idle
+        - outputPort: File
+          sourceNode: VolumeFile_Pose_Talk
+      Frame:
+        - outputPort: out
+          sourceNode: RandomFrame
+    values: {}
+    location: {x: 1500, y: 1200}
+
+  # --- Vector3D compositions (column 2) --------------------------------
+  LocationVector:
+    nodeClass: Vector3D
+    name: LocationVector
+    links:
+      x:
+        - outputPort: out
+          sourceNode: RandomJitterX
+      y:
+        - outputPort: out
+          sourceNode: RandomJitterY
+    values:
+      z: 0.0
+    location: {x: 1000, y: 1400}
+
+  RotationVector:
+    nodeClass: Vector3D
+    name: RotationVector
+    links:
+      z:
+        - outputPort: out
+          sourceNode: RandomHeadingJitter
+    values:
+      x: 0.0
+      y: 0.0
+    location: {x: 1000, y: 2600}
+
+  # --- Placement + Camera (columns 3-4) --------------------------------
+  ManualPlacement_Avatar:
+    nodeClass: Manual Placement
+    name: ManualPlacement_Avatar
+    links:
+      Object Generators:
+        - outputPort: Object Generator
+          sourceNode: Pose_1
+      Location (m):
+        - outputPort: Vector
+          sourceNode: LocationVector
+      Rotation (deg):
+        - outputPort: Vector
+          sourceNode: RotationVector
+    values: {}
+    location: {x: 2000, y: 2000}
+
+  Camera_1:
+    nodeClass: Parameterized Camera
+    name: Camera_1
+    links:
+      Look At Z:
+        - outputPort: Height (m)
+          sourceNode: AvatarRandomizer_1
+    values:
+      Camera X: 0.0
+      Camera Y: -2.0
+      Camera Z: 1.4
+      Look At X: 0.0
+      Look At Y: 0.0
+      Focal Length (mm): 50.0
+      Aperture (f-stop): 0.0
+      Focus Distance (m): 0.0
+    location: {x: 2000, y: 0}
+
+  # --- Scene aggregator + Render (columns 5-6) -------------------------
+  Scene_1:
+    nodeClass: Procedural Scene
+    name: Scene_1
+    links:
+      Placed Objects:
+        - outputPort: Object Generator
+          sourceNode: ManualPlacement_Avatar
+      HDRI:
+        - outputPort: File
+          sourceNode: VolumeFile_HDRI_1
+        - outputPort: File
+          sourceNode: VolumeFile_HDRI_2
+        - outputPort: File
+          sourceNode: VolumeFile_HDRI_3
+        - outputPort: File
+          sourceNode: VolumeFile_HDRI_4
+      HDRI Rotation (deg):
+        - outputPort: out
+          sourceNode: RandomAzimuth
+      Camera:
+        - outputPort: Camera
+          sourceNode: Camera_1
+    values: {}
+    location: {x: 2500, y: 1000}
+
+  Render_1:
+    nodeClass: Render
+    name: Render_1
+    links:
+      Scene:
+        - outputPort: Scene
+          sourceNode: Scene_1
+    values:
+      Resolution (px): "[1280, 1280]"
+      Collect Depth and Normal Masks: Disabled
+      Calculate Obstruction: Disabled
+      Save Blend File: Enabled
+    location: {x: 3000, y: 1000}
+
+version: 2

@@ -14,6 +14,7 @@
 schemas:
   LightNode:
     alias: Light
+    help: toybox/LightNode.md
     inputs:
     - name: Type
       default: 'SPOT'
@@ -27,66 +28,62 @@ schemas:
       validation:
         oneOf:
         - numLinks: one
-        - type: float
+        - type: number
     - name: Location (m)
       default: "[0.0, 0.0, 2.0]"
+      description: World-space XYZ for the light, in meters. Type "[x, y, z]" or wire a Vector3D node.
       validation:
         oneOf:
         - numLinks: one
-        - type: array
-          items:
-            type: float
-            minimum: -10
-            maximum: 10
-          minItems: 3
-          maxItems: 3
-    outputs: 
+        - type: string
+          pattern: '^\s*\[[^\]]*\]\s*$'
+    - name: Color
+      default: "[1.0, 1.0, 1.0]"
+      description: >-
+        RGB tint, 0.0-1.0 per channel (values above 1.0 are allowed to
+        over-saturate a hue). For randomised dataset colour casts, wire
+        three Random Uniform [0..1] nodes into a Vector3D, or wire a
+        Random Choice between a curated palette of String "[r, g, b]"
+        inputs.
+      validation:
+        oneOf:
+        - numLinks: one
+        - type: string
+          pattern: '^\s*\[[^\]]*\]\s*$'
+    - name: Target (m)
+      default: "[0.0, 0.0, 0.0]"
+      description: >-
+        World-space XYZ the Spot light aims at. Ignored when Type=POINT
+        (Blender point lights are omnidirectional). Default points at the
+        world origin so legacy graphs keep their behaviour.
+      validation:
+        oneOf:
+        - numLinks: one
+        - type: string
+          pattern: '^\s*\[[^\]]*\]\s*$'
+    outputs:
     - name: Light
-    tooltip: Create a light object.
-    category: Simulation
+    tooltip: >-
+      Create a Spot or Point light. Color and (for Spot) Target are
+      first-class inputs so randomisers and Vector3D nodes can drive
+      dataset variation directly. For sunlight use the dedicated Sun node.
+    category: Scenes
     subcategory: Lights
-    color: "#24B324"
-
-  CameraNode:
-    alias: 50mm Camera
-    inputs:
-    - name: Location Height (m)
-      default: 0.5
-      validation:
-        oneOf:
-        - type: float
-        - numLinks: one
-    - name: Roll (degrees)
-      default: 0
-      validation:
-        oneOf:
-        - type: float
-        - numLinks: one
-    outputs: 
-    - name: Camera
-    tooltip: Create a camera object.
-    category: Simulation
-    subcategory: Cameras
-    color: "#24B324"
+    color: "#B3B324"
 
   RenderNode:
     alias: Render
+    help: toybox/RenderNode.md
     inputs:
-    - name: Objects of Interest
-      description: Objects to be annotated
-      validation:
-        numLinks: one
-    - name: Lights
+    - name: Scene
+      description: Aggregated Scene from a Procedural Scene or Blend File Scene node. The scene node is responsible for setting scn.camera before Render fires.
       default: ""
       validation:
         oneOf:
         - type: string
           minLength: 0
           maxLength: 0
-        - numLinks: oneOrMany
-    - name: Camera
-      validation:
-        numLinks: one
+        - numLinks: one
     - name: Resolution (px)
       default: "[1920, 1080]"
       validation:
@@ -98,26 +95,107 @@ schemas:
         minItems: 2
         maxItems: 2
     - name: Collect Depth and Normal Masks
-      default: 'T'
+      default: Disabled
+      description: When Enabled, adds compositor passes that write per-pixel depth and surface-normal images alongside the instance masks. (Legacy 'T'/'F' values are still accepted for back-compat.)
       select:
-        - 'T'
-        - 'F'
+        - Enabled
+        - Disabled
       validation:
         type: string
-        minLength: 1
-        maxLength: 1
     - name: Calculate Obstruction
-      default: 'F'
-      description: Enable obstrution calculation
+      default: Disabled
+      description: When Enabled, runs a per-object obstruction pass to populate occlusion percentages in the annotations. Slower; leave Disabled unless needed. (Legacy 'T'/'F' values are still accepted for back-compat.)
       select:
-        - 'T'
-        - 'F'
+        - Enabled
+        - Disabled
       validation:
         type: string
-        minLength: 1
-        maxLength: 1
+    - name: Save Blend File
+      description: When Enabled, saves the full Blender scene as a .blend file to output/test/ immediately before rendering. Open the file in Blender to inspect object placement, lights, and camera. Also activated by the TOYBOX_SAVE_DEBUG_BLEND=1 environment variable. Leave Disabled for production runs.
+      default: Disabled
+      select:
+        - Disabled
+        - Enabled
+      validation:
+        type: string
     outputs: []
     tooltip: Render and image for the scene and create associated annotations and metadata.
+    category: Simulation
+    subcategory: Render
+    color: "#24B324"
+
+  AnimationRenderNode:
+    alias: Animation Render
+    help: toybox/AnimationRenderNode.md
+    inputs:
+    - name: Scene
+      description: Aggregated Scene from a Blend File Scene node with animated characters.
+      default: ""
+      validation:
+        oneOf:
+        - type: string
+          minLength: 0
+          maxLength: 0
+        - numLinks: one
+    - name: Start Frame
+      description: First frame to render (inclusive). Frame 1 = start of the NLA strip.
+      default: 1
+      validation:
+        oneOf:
+        - type: integer
+          minimum: 1
+          maximum: 10000
+        - numLinks: one
+    - name: End Frame
+      description: Last frame to render (inclusive).
+      default: 30
+      validation:
+        oneOf:
+        - type: integer
+          minimum: 1
+          maximum: 10000
+        - numLinks: one
+    - name: Frame Step
+      description: Step between rendered frames. 1 = every frame, 2 = every other frame, etc.
+      default: 1
+      validation:
+        oneOf:
+        - type: integer
+          minimum: 1
+          maximum: 100
+        - numLinks: one
+    - name: Resolution (px)
+      default: "[1024, 1024]"
+      validation:
+        type: array
+        items:
+          type: integer
+          minimum: 128
+          maximum: 3000
+        minItems: 2
+        maxItems: 2
+    - name: Collect Depth and Normal Masks
+      default: 'F'
+      select:
+        - 'T'
+        - 'F'
+      validation:
+        type: string
+        minLength: 1
+        maxLength: 1
+    - name: Save Blend File
+      description: Save a debug .blend before rendering the first frame.
+      default: Disabled
+      select:
+        - Disabled
+        - Enabled
+      validation:
+        type: string
+    outputs: []
+    tooltip: >-
+      Render a range of frames for an animated scene, writing one annotated image
+      per frame. Wire after Blend File Scene. Upstream avatars must have NLA strips
+      applied by an Animation node.
     category: Simulation
     subcategory: Render
     color: "#24B324"

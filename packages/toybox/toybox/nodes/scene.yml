@@ -1,0 +1,187 @@
+# Copyright 2019-2022 DADoES, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License in the root directory in the "LICENSE" file or at:
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+schemas:
+  ProceduralSceneNode:
+    alias: Procedural Scene
+    help: toybox/ProceduralScene.md
+    inputs:
+    - name: Placed Objects
+      description: "Required: placed objects from upstream Random Placement, Place Over Container, or Spatial Cluster."
+      validation:
+        numLinks: oneOrMany
+    - name: Lights
+      description: Optional Light objects to add to the scene.
+      default: ""
+      validation:
+        oneOf:
+          - type: string
+            minLength: 0
+            maxLength: 0
+          - numLinks: oneOrMany
+    - name: HDRI
+      description: >
+        Optional HDRI environment. Wire one or more VolumeFile (.hdr/.exr)
+        or VolumeDirectory nodes; when multiple are wired a random one is
+        chosen per run. When wired, applies Filmic view transform,
+        exposure=0, Cycles samples=256, and OpenImageDenoise for HDR
+        tonemapping.
+      default: ""
+      validation:
+        oneOf:
+          - type: string
+            minLength: 0
+            maxLength: 0
+          - numLinks: oneOrMany
+    - name: HDRI Rotation (deg)
+      description: Azimuth rotation of the HDRI in degrees. Ignored when HDRI is not wired.
+      default: 0.0
+      validation:
+        oneOf:
+          - type: number
+            minimum: -360.0
+            maximum: 360.0
+          - numLinks: one
+    - name: Floor Generator
+      description: Optional Floor to place beneath the objects. When wired, Procedural Scene spawns the floor, attaches rigid bodies, and settles physics on the placed objects.
+      default: ""
+      validation:
+        oneOf:
+          - type: string
+            minLength: 0
+            maxLength: 0
+          - numLinks: oneOrMany
+    - name: Container Generator
+      description: Optional Container to place on the floor. Only meaningful when Floor Generator is also wired.
+      default: ""
+      validation:
+        oneOf:
+          - type: string
+            minLength: 0
+            maxLength: 0
+          - numLinks: oneOrMany
+    - name: Camera
+      description: Optional camera object from a Procedural Camera, Outdoor Camera, or Parameterized Camera node. When wired, replaces the built-in Look Down camera; leave empty to fall back to the legacy Lens (mm) / Camera Height (m) / Look At scalars below. Matches the Camera contract of Blend File Scene so knowledge transfers between the two aggregators.
+      default: ""
+      validation:
+        oneOf:
+          - type: string
+            minLength: 0
+            maxLength: 0
+          - numLinks: one
+    - name: Lens (mm)
+      description: (Legacy) Camera focal length in millimetres. Ignored when a Camera is wired. Maps to Blender's camera data .lens property. Lower values give a wider field of view.
+      default: 50.0
+      validation:
+        oneOf:
+          - type: number
+            minimum: 10.0
+            maximum: 200.0
+          - numLinks: one
+    - name: Camera Height (m)
+      description: (Legacy) Camera Z location above the scene origin. Ignored when a Camera is wired. The XY position is randomised within a quarter-circle of this radius, guaranteeing elevation >= 45 degrees.
+      default: 0.5
+      validation:
+        oneOf:
+          - type: number
+            minimum: 0.1
+            maximum: 100.0
+          - numLinks: one
+    - name: Look At
+      description: (Legacy) World-space point the camera aims at as [X, Y, Z] in metres. Ignored when a Camera is wired. Default [0, 0, 0] (world origin). Parsed as a string list matching Blender's location convention.
+      default: "[0, 0, 0]"
+      validation:
+        oneOf:
+          - type: array
+            items:
+              type: number
+              minimum: -10000.0
+              maximum: 10000.0
+            minItems: 3
+            maxItems: 3
+          - numLinks: one
+    outputs:
+    - name: Scene
+      description: Aggregated AnaScene with camera already set (scn.camera) to be wired into a Render node.
+      validation:
+        numLinks: one
+    tooltip: Build a scene procedurally from toybox parts (placed objects, lights, floor, container) and emit a Scene for Render. Wire a Procedural Camera into the Camera input, or leave it empty to fall back to the built-in Look Down camera driven by the Lens / Camera Height / Look At scalars.
+    category: Scenes
+    subcategory: Aggregators
+    color: "#B3B324"
+
+  BlendFileSceneNode:
+    alias: Blend File Scene
+    help: toybox/BlendFileScene.md
+    inputs:
+    - name: Scene File
+      description: FileObject from a Volume File node pointing at the .blend to load as the scene environment.
+      validation:
+        numLinks: one
+    - name: Placed Objects
+      description: Optional placed objects from upstream Random Placement / Place Over Container / Spatial Cluster, overlaid on top of the loaded environment.
+      default: ""
+      validation:
+        oneOf:
+          - type: string
+            minLength: 0
+            maxLength: 0
+          - numLinks: oneOrMany
+    - name: Lights
+      description: Optional additional Light objects to add on top of any lights baked into the loaded blend.
+      default: ""
+      validation:
+        oneOf:
+          - type: string
+            minLength: 0
+            maxLength: 0
+          - numLinks: oneOrMany
+    - name: HDRI
+      description: Optional HDRI sky environment. Wire one or more VolumeFile (.hdr/.exr) or VolumeDirectory nodes; when multiple are wired a random one is chosen each run via ctx.random. Leave unwired for indoor scenes that supply their own lighting.
+      default: ""
+      validation:
+        oneOf:
+          - type: string
+            minLength: 0
+            maxLength: 0
+          - numLinks: oneOrMany
+    - name: HDRI Rotation (deg)
+      description: Azimuth rotation of the HDRI environment in degrees. 0 leaves the image as-is; positive values rotate the sky counter-clockwise when viewed from above.
+      default: 0.0
+      validation:
+        oneOf:
+          - type: number
+            minimum: -360.0
+            maximum: 360.0
+          - numLinks: one
+    - name: Settle Physics
+      description: When Enabled and Placed Objects are wired, placed objects are treated as ACTIVE rigid bodies and every mesh from the loaded blend is treated as PASSIVE, then gravity is baked. Default Disabled -- most artist-built scenes already provide a floor that placement nodes scattered objects onto.
+      default: Disabled
+      select:
+        - Disabled
+        - Enabled
+      validation:
+        type: string
+    - name: Camera
+      description: Camera object from a Procedural Camera, Outdoor Camera, or Parameterized Camera node. The scene links the camera into the collection and sets scn.camera before rendering, conforming to the Blender API model.
+      validation:
+        numLinks: one
+    outputs:
+    - name: Scene
+      description: Aggregated AnaScene (blend environment plus overlaid placed objects and lights) with camera already set (scn.camera), to be wired into a Render node.
+      validation:
+        numLinks: one
+    tooltip: Load a prebuilt .blend file as the scene environment and overlay placed objects and lights on top. Wire a Procedural Camera, Outdoor Camera, or Parameterized Camera to supply the active camera. BYO-blend alternative to Procedural Scene.
+    category: Scenes
+    subcategory: Aggregators
+    color: "#B3B324"

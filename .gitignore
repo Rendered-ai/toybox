@@ -1,6 +1,6 @@
-# ana-related
-output/
-data/
+# ana-related -- root-only, so docs/output/ (image assets) is tracked.
+/output/
+/data/
 packages/anatools/
 
 # in case anatools is included for testing
@@ -19,7 +19,9 @@ __pycache__/
 *.vdb
 
 # don't put graphics in the repository
+# ...except for the hero screenshots referenced from README + channel.md.
 *.png
+!docs/output/*.png
 *.tif
 *.jpg
 *.pkl
@@ -43,3 +45,10 @@ __pycache__/
 
 # ignore os-related files
 .DS_Store
+
+node_data.json
+graphs/detective_room_test.yml
+
+# session-local handoff scratchpad, never shipped
+HANDOFF.md
+HANDOFF.local.md

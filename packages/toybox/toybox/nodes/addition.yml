@@ -1,0 +1,28 @@
+schemas:
+  Addition:
+    alias: Addition
+    help: toybox/Addition.md
+    inputs:
+    - name: Input A
+      description: First number to add
+      default: 0
+      validation:
+        oneOf:
+          - type: number
+          - numLinks: one
+    - name: Input B
+      description: Second number to add
+      default: 0
+      validation:
+        oneOf:
+          - type: number
+          - numLinks: one
+    outputs:
+    - name: Sum
+      description: The sum of Input A and Input B
+      validation:
+        numLinks: oneOrMany
+    tooltip: Adds two numbers together and outputs the sum.
+    category: Math
+    subcategory: Scalar
+    color: "#EEEEEE"

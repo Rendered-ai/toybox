@@ -39,6 +39,38 @@ add_nodes:
     subcategory: Branch Modifiers
     color: "#B3B3B3"
   - package: anatools
+    name: Vector2D
+    alias: Vector2D
+    category: Math
+    subcategory: Vector
+    color: "#EEEEEE"
+  - package: anatools
+    name: Vector3D
+    alias: Vector3D
+    category: Math
+    subcategory: Vector
+    color: "#EEEEEE"
+  - package: anatools
+    name: Value
+    alias: Value
+    category: Math
+    subcategory: Scalar
+    color: "#EEEEEE"
+  - package: anatools
+    name: String
+    alias: String
+    category: Graph Control
+    subcategory: Value Generators
+    color: "#B3B3B3"
+  - package: anatools
     name: VolumeFile
   - package: anatools
     name: VolumeDirectory
+
+
+remotes:
+  - channelId: 8bd3c9b7-77da-4b9b-afca-2ddcd7dcbf93
+    name: toybox_blender4.2
+    description: "Toybox channel rebuilt on Blender 4.2 / Python 3.11."
+    instance: g4dn.xlarge
+    timeout: 120

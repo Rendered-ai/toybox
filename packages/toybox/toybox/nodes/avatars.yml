@@ -1,0 +1,327 @@
+schemas:
+  CharacterNode:
+    alias: Character
+    help: toybox/Character.md
+    inputs:
+      - name: Character File
+        description: >-
+          FileObject from a VolumeFile pointing at a rigged-character
+          .blend. Root must be a single Armature with meshes parented to
+          it (Rigify-compatible deform bones recommended). See the Avatar
+          standards doc for the full drop-in contract.
+        validation:
+          numLinks: one
+    outputs:
+      - name: Object Generator
+        description: >-
+          Object generator that yields one rigged AvatarObject per call.
+          Drop-in compatible with any toybox Object Generators consumer
+          (Spatial Cluster, Random Placement, Manual Placement, Place
+          Over Container) or with an Avatar Animation / Avatar Pose
+          decorator.
+    tooltip: Rigged-character factory (one .blend in, one armature out).
+    category: Objects
+    subcategory: Avatars
+    color: "#2472B3"
+
+  AvatarConvertNode:
+    alias: Avatar Convert
+    help: toybox/AvatarConvert.md
+    inputs:
+      - name: Avatar File
+        description: >-
+          FileObject from a VolumeFile pointing at a user-uploaded rigged
+          avatar (.blend, .fbx, or .glb/.gltf). T-pose, authored in (or
+          close to) rendered_humanoid, or Rocketbox Bip01.
+        validation:
+          numLinks: one
+      - name: Source Rig
+        default: Auto
+        description: >-
+          Bone-namespace of the uploaded rig. Auto detects from bone names
+          (rendered_humanoid -> no remap; Rocketbox Bip01 -> remapped via
+          BoneMappings/rocketbox.json).
+        select:
+          - Auto
+          - rendered_humanoid
+          - rocketbox
+        validation:
+          type: string
+      - name: Rest Pose
+        default: T-Pose
+        description: >-
+          Rest pose the upload was authored against. T-Pose is the canonical
+          standard. A-Pose is accepted but only TAGGED (ana_rest_pose=a_pose)
+          for downstream handling -- v1 applies no rest-pose correction offset.
+        select:
+          - T-Pose
+          - A-Pose
+        validation:
+          type: string
+      - name: Gender
+        default: ''
+        description: >-
+          Optional ground-truth gender stamped as ana_gender (female / male).
+          Uploads usually lack demographics; set it here so per-object metadata
+          is complete. Leave blank to omit.
+        validation:
+          type: string
+      - name: Ethnicity
+        default: ''
+        description: >-
+          Optional ground-truth ethnicity stamped as ana_ethnicity (one of
+          hispanic / black / asian / caucasian / middleeastern / southasian).
+          Leave blank to omit.
+        validation:
+          type: string
+    outputs:
+      - name: Object Generator
+        description: >-
+          Object generator yielding the standardised rig as an AvatarObject
+          per call. Drop-in compatible with every Object Generators consumer
+          (Spatial Cluster, Random Placement, ...) and the Avatar Pose /
+          Avatar Animation decorators -- identical to a Character node output.
+    tooltip: >-
+      Normalise a user-uploaded rigged avatar (.blend/.fbx/.glb) to the
+      rendered_humanoid standard, so any conforming rig plugs into the avatar
+      pipeline unchanged.
+    category: Objects
+    subcategory: Avatars
+    color: "#2472B3"
+
+  AnimationNode:
+    alias: Avatar Animation
+    help: toybox/Animation.md
+    inputs:
+      - name: Character Generator
+        description: >-
+          Upstream Character generator(s) to animate. Raw FileObjects are
+          accepted but skip armature validation -- prefer wiring Character
+          nodes here. Required for .fbx clips: the avatar's own rig supplies
+          the rest pose the FBX is retargeted onto.
+        validation:
+          numLinks: oneOrMany
+      - name: Animation File
+        description: >-
+          One or more VolumeFile connections pointing at a Rocketbox .fbx or
+          a pre-baked Action-only .blend. A .fbx is retargeted on the fly
+          onto each avatar's own rig rest pose. When multiple files are
+          wired, each scattered avatar draws a random clip.
+        validation:
+          numLinks: oneOrMany
+      - name: Skeleton
+        default: Auto
+        description: >-
+          Bone-namespace of the source action. Auto detects from the
+          imported .fbx bone names (Rocketbox `Bip01 …` -> text-only rename).
+          `rigify` / `ue_mannequin` are stubs.
+        select:
+          - Auto
+          - rocketbox
+          - rigify
+          - ue_mannequin
+        validation:
+          type: string
+      - name: Loop
+        default: Enabled
+        description: >-
+          When Enabled the NLA strip is tiled (repeat=100) so the
+          animation plays for the duration of any render frame range.
+          Disable for one-shot actions (jump, fall).
+        select:
+          - Enabled
+          - Disabled
+        validation:
+          type: string
+      - name: Frame Offset
+        default: 0
+        description: >-
+          Frames to delay the strip start. Useful for staggering walk
+          cycles across a scattered crowd so motion is not synchronised.
+        validation:
+          oneOf:
+            - minimum: 0
+              maximum: 1000
+              type: integer
+            - numLinks: one
+      - name: FPS
+        default: 30
+        description: >-
+          Frame rate stamped on a retargeted .fbx clip's Action (ana_fps).
+          Ignored for pre-baked .blend inputs.
+        validation:
+          oneOf:
+            - minimum: 1
+              maximum: 240
+              type: integer
+            - numLinks: one
+      - name: Root Motion
+        default: Disabled
+        description: >-
+          For .fbx clips: when Disabled, the root/hips translation F-curves
+          are stripped so the avatar stays anchored at its placement
+          (suitable for in-place mocap like sit/stand). Enable to keep the
+          clip's locomotion. Ignored for pre-baked .blend inputs.
+        select:
+          - Enabled
+          - Disabled
+        validation:
+          type: string
+    outputs:
+      - name: Object Generator
+        description: >-
+          Character generator with an NLA action attached. Drop-in
+          replacement for the upstream Character / Avatar Convert output.
+    tooltip: >-
+      Animate upstream avatars: feed a Rocketbox .fbx (auto-retargeted onto
+      each avatar's own rig) or a pre-baked Action .blend, attached as an
+      NLA strip.
+    category: Objects
+    subcategory: Avatars
+    color: "#2472B3"
+
+  AvatarPoseNode:
+    alias: Avatar Pose
+    help: toybox/AvatarPose.md
+    inputs:
+      - name: Character Generator
+        description: >-
+          Upstream Character generator(s) to pose. Raw FileObjects are accepted
+          but skip armature validation -- prefer wiring Character nodes here.
+          The avatar's own rig supplies the rest pose a .fbx is retargeted onto.
+        validation:
+          numLinks: oneOrMany
+      - name: Pose File
+        description: >-
+          One or more VolumeFile connections pointing at a Rocketbox .fbx
+          pose or a pre-baked Action .blend. A .fbx is retargeted onto each
+          avatar's own rig rest pose. The chosen frame is baked statically
+          onto the pose bones (no NLA strip). When multiple files are
+          wired, each scattered avatar draws a random pose.
+        validation:
+          numLinks: oneOrMany
+      - name: Skeleton
+        default: Auto
+        description: >-
+          Bone-namespace of the source pose. Auto detects from the imported
+          .fbx bone names (Rocketbox `Bip01 …` -> text-only rename).
+        select:
+          - Auto
+          - rocketbox
+          - rigify
+          - ue_mannequin
+        validation:
+          type: string
+      - name: Frame
+        default: 1
+        description: >-
+          Which frame of the source clip to freeze. Clamped to the clip's
+          frame range.
+        validation:
+          oneOf:
+            - minimum: 0
+              maximum: 100000
+              type: integer
+            - numLinks: one
+    outputs:
+      - name: Object Generator
+        description: >-
+          Character generator with a static pose baked onto the rig. Drop-in
+          replacement for the upstream Character / Avatar Convert / Appearance
+          Modifier output; wire into placement then a Render (single still).
+    tooltip: >-
+      Freeze a single static pose onto upstream avatars from a Rocketbox .fbx
+      (auto-retargeted) or pre-baked .blend. No NLA strip -- pairs with Render.
+    category: Objects
+    subcategory: Avatars
+    color: "#2472B3"
+
+  # `select:` lists below mirror the tuples in
+  # `packages/toybox/toybox/standards/vocab.py`. When §3.4 / §2.2 / §3.3 of
+  # `ASSET_STANDARDS.md` gains a value, update `vocab.py` and this schema
+  # in the same commit -- vocab.py is the runtime source of truth; the
+  # `select:` block here is the graph-editor UI mirror.
+  AvatarRandomizerNode:
+    alias: Avatar Randomizer
+    help: toybox/AvatarRandomizer.md
+    inputs:
+      - name: Avatar Pool
+        description: >-
+          VolumeDirectory pointing at a folder of asset-standard avatars.
+          Each avatar sits in its own subdirectory alongside a sibling
+          `<name>.json` sidecar carrying the `ana_*` demographics defined
+          in Rendered.ai Asset Standards §3.4. The node walks the tree
+          for sidecars whose `ana_kind` is `character` (or empty, for
+          legacy sidecars predating the standard).
+        validation:
+          numLinks: one
+      - name: Gender
+        default: any
+        description: >-
+          Filter on `ana_gender` (§3.4 controlled vocab). `any` disables
+          the filter. Avatars whose sidecar omits `ana_gender` are excluded
+          when a filter is set -- the standard's §1.5 "don't invent values"
+          rule.
+        select:
+          - any
+          - female
+          - male
+        validation:
+          type: string
+      - name: Clothing
+        default: any
+        description: >-
+          Filter on `ana_clothing` (§3.4 controlled vocab). Multi-value
+          sidecars (comma-separated) match if any tag matches. Non-vocab
+          free-text values (e.g. legacy `"chef whites"`, `"scrubs"`) never
+          match a controlled-vocab filter; stamp them per §3.4 before
+          expecting them to appear in a filtered pool.
+        select:
+          - any
+          - casual
+          - business
+          - formal
+          - athletic
+          - swimwear
+          - uniform
+          - outerwear
+          - medical
+          - patient_gown
+          - traditional
+          - workwear
+          - sleepwear
+          - military
+        validation:
+          type: string
+      - name: Setting
+        default: any
+        description: >-
+          Filter on `ana_setting` (§3.4 controlled vocab). Multi-value
+          sidecars match on any listed tag.
+        select:
+          - any
+          - indoor
+          - outdoor
+        validation:
+          type: string
+    outputs:
+      - name: Avatar File
+        description: >-
+          FileObject for the picked avatar's `.fbx` (or `.blend`). Drop-in
+          replacement for a `VolumeFile` on `Avatar Convert`'s Avatar File
+          input.
+      - name: Height (m)
+        description: >-
+          Picked avatar's rest-pose height in metres, sourced from
+          `ana_height` (§3.4) or the sidecar's `bounding_box` Z extent as
+          a fallback. Wire into a Camera's Look At Z (or into a Vector3D
+          feeding it) so framing tracks the picked avatar's height instead
+          of a hardcoded eye level. 0.0 when neither is stamped -- treat
+          as "unknown, use graph default".
+    tooltip: >-
+      Pick one asset-standard avatar per run from a demographic-filtered
+      pool. Wire the output into Avatar Convert; combine with a similar
+      pool on Avatar Pose / Avatar Animation for dataset-scale diversity.
+    category: Objects
+    subcategory: Avatars
+    color: "#2472B3"

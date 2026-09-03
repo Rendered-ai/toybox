@@ -1,0 +1,147 @@
+# avatar_animation_demo.yml -- Avatar animation + video-frame pipeline
+#
+# Workflow: per-frame annotated video dataset. Showcases:
+#   * Avatar Convert normalization -- Rocketbox Bip01 bones renamed to
+#     rendered_humanoid (§2 in ASSET_STANDARDS), rig-agnostic downstream.
+#   * Avatar Animation with root motion extraction -- the run cycle's
+#     baked-in translation drives the character forward across frames
+#     (§4.2 recommendation).
+#   * Animation Render multi-frame path -- 24 frames per run with
+#     per-frame masks and annotations, contrast with the single-still
+#     Render used in the other hero graphs.
+#   * Random Choice on Manual Placement's Rotation to constrain heading
+#     to East/West (+/- 90 deg with +/- 10 deg jitter) so the runner
+#     stays laterally near origin.
+#   * Procedural Scene with an outdoor HDRI (noon_grass) as backdrop
+#     and lighting source; no Floor, no Light node needed.
+nodes:
+  # --- Sources (column 0) ----------------------------------------------
+  VolumeFile_Avatar:
+    nodeClass: VolumeFile
+    name: VolumeFile_Avatar
+    links: {}
+    values:
+      File: "708b0ca9-d81c-4679-b164-141418507830:/RocketboxAvatars/Female_Adult_01/Female_Adult_01.fbx"
+    location: {x: 0, y: 0}
+
+  VolumeFile_Anim:
+    nodeClass: VolumeFile
+    name: VolumeFile_Anim
+    links: {}
+    values:
+      File: "708b0ca9-d81c-4679-b164-141418507830:/RocketboxAnimations/Run/f_run_neutral.fbx"
+    location: {x: 0, y: 400}
+
+  VolumeFile_HDRI:
+    nodeClass: VolumeFile
+    name: VolumeFile_HDRI
+    links: {}
+    values:
+      File: "708b0ca9-d81c-4679-b164-141418507830:/HDRIs/Poly Haven/Clear/noon_grass_4k.hdr"
+    location: {x: 0, y: 800}
+
+  # --- Random Choice heading (column 1) --------------------------------
+  # East/West picker. Yaw = -90 faces +X (East), +90 faces -X (West);
+  # +/- 10 deg jitter so consecutive runs vary without pointing at/away
+  # from the camera.
+  HeadingChoice:
+    nodeClass: Random Choice
+    name: HeadingChoice
+    links: {}
+    values:
+      Options: '["[0, 0, -80]", "[0, 0, -100]", "[0, 0, 80]", "[0, 0, 100]"]'
+    location: {x: 500, y: 1200}
+
+  # --- Convert + Animate (columns 1-2) ---------------------------------
+  Convert_1:
+    nodeClass: Avatar Convert
+    name: Convert_1
+    links:
+      Avatar File:
+        - outputPort: File
+          sourceNode: VolumeFile_Avatar
+    values:
+      Rest Pose: T-Pose
+      Gender: Female
+      Ethnicity: caucasian
+    location: {x: 500, y: 0}
+
+  Animation_1:
+    nodeClass: Avatar Animation
+    name: Animation_1
+    links:
+      Character Generator:
+        - outputPort: Object Generator
+          sourceNode: Convert_1
+      Animation File:
+        - outputPort: File
+          sourceNode: VolumeFile_Anim
+    values:
+      Loop: Enabled
+      Frame Offset: 0
+      FPS: 30
+      Root Motion: Enabled
+    location: {x: 1000, y: 200}
+
+  # --- Placement + Camera (columns 3-4) --------------------------------
+  ManualPlacement_Avatar:
+    nodeClass: Manual Placement
+    name: ManualPlacement_Avatar
+    links:
+      Object Generators:
+        - outputPort: Object Generator
+          sourceNode: Animation_1
+      Rotation (deg):
+        - outputPort: Selection
+          sourceNode: HeadingChoice
+    values:
+      Location (m): "[0.0, 0.0, 0.0]"
+    location: {x: 1500, y: 600}
+
+  Camera_1:
+    nodeClass: Parameterized Camera
+    name: Camera_1
+    links: {}
+    values:
+      Camera X: 0.0
+      Camera Y: -6.0
+      Camera Z: 1.8
+      Look At X: 0.0
+      Look At Y: 0.0
+      Look At Z: 1.0
+      Focal Length (mm): 35.0
+    location: {x: 1500, y: 1200}
+
+  # --- Scene aggregator + Animation Render -----------------------------
+  Scene_1:
+    nodeClass: Procedural Scene
+    name: Scene_1
+    links:
+      Placed Objects:
+        - outputPort: Object Generator
+          sourceNode: ManualPlacement_Avatar
+      HDRI:
+        - outputPort: File
+          sourceNode: VolumeFile_HDRI
+      Camera:
+        - outputPort: Camera
+          sourceNode: Camera_1
+    values: {}
+    location: {x: 2000, y: 600}
+
+  AnimationRender_1:
+    nodeClass: Animation Render
+    name: AnimationRender_1
+    links:
+      Scene:
+        - outputPort: Scene
+          sourceNode: Scene_1
+    values:
+      Start Frame: 1
+      End Frame: 24
+      Resolution (px): "[1280, 1280]"
+      Collect Depth and Normal Masks: 'F'
+      Save Blend File: Enabled
+    location: {x: 2500, y: 600}
+
+version: 2

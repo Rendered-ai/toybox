@@ -15,34 +15,33 @@
 #The package.yml file contains the location of models to be loaded from Blender files.
 #The name of the objects map to the name of a collection in the blender file.
 
-# This package uses bundled package data. The data is located in the package itself under
-# a sub directory defined by the 'example' logical name.
-# The logical name is then used in the "objects" block to refer to that location.
-# For instance, "example:Yoyo.blend" refers to "volumes/e66.../Yoyo.blend" in the
-# package directory
+# The toybox channel ships against a single public-share volume registered
+# under the `example` logical name. Every objects: entry below references
+# it via `example:<path>`. See the volume's NOTICE.md and LICENSES for the
+# per-asset attribution and licence roster (CC0-1.0 for Rendered.ai-
+# authored assets, MIT for Rocketbox, CC0-1.0 for Poly Haven HDRIs).
 volumes:
-  example: '05172bac-03c6-4151-bfb9-870766b1b1e0'
-
+  example: 708b0ca9-d81c-4679-b164-141418507830
 # Define objects.
 objects:
 
   YoYo:
-    filename: example:YoYo_greenLogo.blend
+    filename: example:Toys/YoYo_greenLogo.blend
 
   BubbleBottle:
-    filename: example:BubbleBottle_greenLogo.blend
+    filename: example:Toys/BubbleBottle_greenLogo.blend
 
   Skateboard:
-    filename: example:Skateboard_v2.blend
+    filename: example:Toys/Skateboard_v2.blend
 
   Cube:
-    filename: example:Cube.blend
+    filename: example:Toys/Cube.blend
 
   Mix Cube:
-    filename: example:MixCube.blend
+    filename: example:Toys/MixCube.blend
 
   PlayDough:
-    filename: example:PlayDough_greenLogo.blend
+    filename: example:Toys/PlayDough_greenLogo.blend
 
   Light Wooden Box:
     filename: example:Containers/LightWoodenBox.blend
@@ -100,3 +99,14 @@ objects:
 
   Metal:
     filename: example:Floors/Metal.blend
+
+  # Fruit props (single objects). Baskets migrated to Containers/ above.
+  Apple:
+    filename: example:Fruit/Apple.blend
+
+  Orange:
+    filename: example:Fruit/Orange.blend
+
+  # Full-scene blends consumed by the BlendFileScene aggregator.
+  Parking Lot Scene:
+    filename: example:Outdoor/ParkingLot.blend
