@@ -14,6 +14,7 @@
 schemas:
   ColorVariationModifier:
     alias: Color Variation
+    help: toybox/ColorVariationModifier.md
     inputs:
     - name: Color
       description:
@@ -36,9 +37,11 @@ schemas:
       validation:
         numLinks: oneOrMany
     outputs:
+    - name: Object Generator
+      description: Colour-varied object generator. Wire into any Object Generators port the same way as a raw generator.
     - name: Generator
-      description: Modified object generator
+      description: Legacy alias for Object Generator; kept so graphs authored before the 2026-05 port-name unification (commit e3082df) still load. Prefer Object Generator on new graphs. Both ports emit the same value.
     tooltip: Change the color variation between objects
-    category: Modifiers
-    subcategory: Color
-    color: "#B32424"
+    category: Objects
+    subcategory: Object Modifiers
+    color: "#2472B3"

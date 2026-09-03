@@ -1,0 +1,234 @@
+# parking_lot_blend_scene.yml -- Blend File Scene (BYO artist-authored blend)
+#
+# Workflow: adopt a pre-authored `.blend` as the whole scene environment
+# and overlay one placed avatar on top. Contrast with the four other
+# hero graphs which use Procedural Scene composition. Showcases:
+#   * Blend File Scene as the aggregator -- loads ParkingLot.blend
+#     wholesale (asphalt geometry, cars, curbside props, baked world),
+#     purges any camera baked into the blend, and lets the toybox pipe-
+#     line drive placement + camera. Right choice when an artist has
+#     authored the environment or when real ground geometry is needed
+#     for cast shadows.
+#   * Blend File Scene's HDRI + HDRI Rotation inputs -- overrides the
+#     blend's baked world when wired (docstring says otherwise; see the
+#     toybox-node-defects memory). Random Uniform on HDRI Rotation
+#     decouples the sun angle from the baked lot orientation.
+#   * Parameterized Camera as the required upstream camera -- Blend
+#     File Scene purges any CAMERA-type object it finds in the blend,
+#     so an external Camera node must supply the active camera. XY
+#     jittered here so different subsets of parked cars end up in the
+#     background across runs even though the blend geometry is static.
+#   * Avatar pipeline against a Blend File Scene environment -- Rocket-
+#     box avatar walked (Avatar Pose fed a walk-cycle FBX + random
+#     Frame) and heading-randomized via a Random Uniform + Vector3D
+#     into Manual Placement's Rotation. Settle Physics: Disabled
+#     because the avatar is placed at explicit Z=0 -- no gravity bake
+#     needed against the blend's asphalt.
+#
+# Note on scale: toys were tried first as the OOI but ship at ~5-10 cm
+# (tabletop scale) and vanish against the 47 m lot. A ~1.7 m avatar
+# reads properly next to ~2.3 m cars.
+#
+# Assets (all CC0/MIT, public-share volume 708b0ca9-...):
+#   Outdoor/ParkingLot.blend                -- Rendered.ai, CC0
+#   Outdoor/mall_parking_lot_4k.exr         -- Poly Haven, CC0
+#   RocketboxAvatars/Business_Female_01     -- Microsoft, MIT
+#   RocketboxAnimations/Walk/f_walk_neutral -- Microsoft, MIT
+nodes:
+  # --- Sources (column 0) ----------------------------------------------
+  VolumeFile_Scene:
+    nodeClass: VolumeFile
+    name: VolumeFile_Scene
+    links: {}
+    values:
+      File: "708b0ca9-d81c-4679-b164-141418507830:/Outdoor/ParkingLot.blend"
+    location: {x: 0, y: 0}
+
+  VolumeFile_HDRI:
+    nodeClass: VolumeFile
+    name: VolumeFile_HDRI
+    links: {}
+    values:
+      File: "708b0ca9-d81c-4679-b164-141418507830:/Outdoor/mall_parking_lot_4k.exr"
+    location: {x: 0, y: 400}
+
+  VolumeFile_Avatar:
+    nodeClass: VolumeFile
+    name: VolumeFile_Avatar
+    links: {}
+    values:
+      File: "708b0ca9-d81c-4679-b164-141418507830:/RocketboxAvatars/Business_Female_01/Business_Female_01.fbx"
+    location: {x: 0, y: 800}
+
+  VolumeFile_Pose:
+    nodeClass: VolumeFile
+    name: VolumeFile_Pose
+    links: {}
+    values:
+      File: "708b0ca9-d81c-4679-b164-141418507830:/RocketboxAnimations/Walk/f_walk_neutral.fbx"
+    location: {x: 0, y: 1200}
+
+  # --- Random generators (column 1) ------------------------------------
+  # Walk cycle is 38 frames -- [1, 38) covers the full stride.
+  RandomFrame:
+    nodeClass: Random Integer
+    name: RandomFrame
+    links: {}
+    values:
+      low: 1
+      high: 38
+    location: {x: 500, y: 1200}
+
+  RandomHeading:
+    nodeClass: Random Uniform
+    name: RandomHeading
+    links: {}
+    values:
+      low: 0.0
+      high: 360.0
+    location: {x: 500, y: 1600}
+
+  RandomHDRIRotation:
+    nodeClass: Random Uniform
+    name: RandomHDRIRotation
+    links: {}
+    values:
+      low: 0.0
+      high: 360.0
+    location: {x: 500, y: 400}
+
+  RandomCameraX:
+    nodeClass: Random Uniform
+    name: RandomCameraX
+    links: {}
+    values:
+      low: -1.0
+      high: 7.0
+    location: {x: 500, y: 2400}
+
+  RandomCameraY:
+    nodeClass: Random Uniform
+    name: RandomCameraY
+    links: {}
+    values:
+      low: -12.0
+      high: -8.0
+    location: {x: 500, y: 2800}
+
+  # --- Convert + Pose (columns 1-2) ------------------------------------
+  Convert_1:
+    nodeClass: Avatar Convert
+    name: Convert_1
+    links:
+      Avatar File:
+        - outputPort: File
+          sourceNode: VolumeFile_Avatar
+    values:
+      Rest Pose: T-Pose
+      Gender: Female
+      Ethnicity: caucasian
+    location: {x: 500, y: 800}
+
+  Pose_1:
+    nodeClass: Avatar Pose
+    name: Pose_1
+    links:
+      Character Generator:
+        - outputPort: Object Generator
+          sourceNode: Convert_1
+      Pose File:
+        - outputPort: File
+          sourceNode: VolumeFile_Pose
+      Frame:
+        - outputPort: out
+          sourceNode: RandomFrame
+    values: {}
+    location: {x: 1000, y: 1000}
+
+  # --- Vector3D rotation composition (column 2) ------------------------
+  RotationVector:
+    nodeClass: Vector3D
+    name: RotationVector
+    links:
+      z:
+        - outputPort: out
+          sourceNode: RandomHeading
+    values:
+      x: 0.0
+      y: 0.0
+    location: {x: 1000, y: 1600}
+
+  # --- Placement + Camera (column 3) -----------------------------------
+  Placement_1:
+    nodeClass: Manual Placement
+    name: Placement_1
+    links:
+      Object Generators:
+        - outputPort: Object Generator
+          sourceNode: Pose_1
+      Rotation (deg):
+        - outputPort: Vector
+          sourceNode: RotationVector
+    values:
+      Location (m): "[3.0, -6.0, 0.0]"
+    location: {x: 1500, y: 1200}
+
+  # Look At stays fixed on the avatar; Camera XY jittered so different
+  # cars appear behind. Camera stays south (in front of avatar) so the
+  # parked-car cluster (y~-2) is always in the background.
+  Camera_1:
+    nodeClass: Parameterized Camera
+    name: Camera_1
+    links:
+      Camera X:
+        - outputPort: out
+          sourceNode: RandomCameraX
+      Camera Y:
+        - outputPort: out
+          sourceNode: RandomCameraY
+    values:
+      Camera Z: 1.4
+      Look At X: 3.0
+      Look At Y: -6.0
+      Look At Z: 1.2
+      Focal Length (mm): 35.0
+    location: {x: 1500, y: 2600}
+
+  # --- Blend File Scene + Render (columns 4-5) -------------------------
+  Scene_1:
+    nodeClass: Blend File Scene
+    name: Scene_1
+    links:
+      Scene File:
+        - outputPort: File
+          sourceNode: VolumeFile_Scene
+      Placed Objects:
+        - outputPort: Object Generator
+          sourceNode: Placement_1
+      HDRI:
+        - outputPort: File
+          sourceNode: VolumeFile_HDRI
+      HDRI Rotation (deg):
+        - outputPort: out
+          sourceNode: RandomHDRIRotation
+      Camera:
+        - outputPort: Camera
+          sourceNode: Camera_1
+    values:
+      Settle Physics: Disabled
+    location: {x: 2000, y: 1200}
+
+  Render_1:
+    nodeClass: Render
+    name: Render_1
+    links:
+      Scene:
+        - outputPort: Scene
+          sourceNode: Scene_1
+    values:
+      Resolution (px): "[1280, 1280]"
+      Calculate Obstruction: Disabled
+      Save Blend File: Enabled
+    location: {x: 2500, y: 1200}
+
+version: 2

@@ -12,74 +12,55 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 schemas:
-  BubblesNode:
-    alias: Bubbles
-    inputs: []
+  ToyNode:
+    alias: Toy
+    help: toybox/ToyNode.md
+    inputs:
+    - name: Toy Type
+      description: Which toy the node spawns. `<random>` picks one uniformly at run time. New toys are added by extending `_TOY_REGISTRY` in `object_generators.py` and appending to this `select:` list.
+      select:
+        - <random>
+        - Bubbles
+        - Yo-yo
+        - Skateboard
+        - Playdough
+        - Rubik's Cube
+        - Mix Cube
+      default: <random>
+      validation:
+        type: string
     outputs:
-    - name: Bubbles Bottle Generator
-      description: Object generator
-    tooltip: Bubbles bottle factory
+    - name: Object Generator
+      description: Toy generator. Wire into any Object Generators port (Spatial Cluster, Random Placement, Manual Placement, ...) or into a Color Variation / Scale / Warp modifier.
+    tooltip: Toy factory (Bubbles, Yo-yo, Skateboard, Playdough, Rubik's Cube, Mix Cube)
     category: Objects
-    subcategory: Generators
-    color: "#246BB3"
+    subcategory: Basic Objects
+    color: "#2472B3"
 
-  YoyoNode:
-    alias: Yo-yo
-    inputs: []
+  FruitNode:
+    alias: Fruit
+    help: toybox/FruitNode.md
+    inputs:
+    - name: Fruit Type
+      description: Which fruit prop the node spawns. `<random>` picks one uniformly at run time. New fruit are added by extending `_FRUIT_REGISTRY` in `object_generators.py` and appending to this `select:` list.
+      select:
+        - <random>
+        - Apple
+        - Orange
+      default: <random>
+      validation:
+        type: string
     outputs:
-    - name: Yoyo Generator
-      description: Object generator
-    tooltip: Yoyo factory
+    - name: Object Generator
+      description: Fruit generator. Wire into any Object Generators port (Spatial Cluster, Random Placement, Manual Placement, ...) or into a Color Variation / Scale / Warp modifier.
+    tooltip: Fruit factory (Apple, Orange)
     category: Objects
-    subcategory: Generators
-    color: "#246BB3"
-
-  SkateboardNode:
-    alias: Skateboard
-    inputs: []
-    outputs:
-    - name: Skateboard Generator
-      description: Object generator
-    tooltip: Toy skateboard factory
-    category: Objects
-    subcategory: Generators
-    color: "#246BB3"
-
-  PlayDohNode:
-    alias: Playdough
-    inputs: []
-    outputs:
-    - name: Play Dough Generator
-      description: Object generator
-    tooltip: Play dough tub factory
-    category: Objects
-    subcategory: Generators
-    color: "#246BB3"
-
-  RubikNode:
-    alias: Rubik's Cube
-    inputs: []
-    outputs:
-    - name: Rubik's Cube Generator
-      description: Object generator
-    tooltip: Rubik's Cube factory
-    category: Objects
-    subcategory: Generators
-    color: "#246BB3"
-
-  MixedRubikNode:
-    alias: Mix Cube
-    inputs: []
-    outputs:
-    - name: Mixed Cube Generator
-      description: Object generator
-    tooltip: Mixed up Rubik's Cube factory
-    category: Objects
-    subcategory: Generators
-    color: "#246BB3"
+    subcategory: Basic Objects
+    color: "#2472B3"
 
   ContainerNode:
     alias: Container
+    help: toybox/ContainerNode.md
     inputs:
     - name: Container Type
       description: Type of container into which the objects are dropped
@@ -94,24 +75,30 @@ schemas:
         - Gray Tub
         - Yellow Bowl
         - Purple Bowl
+        - Short Basket
+        - Tall Basket
       default: <random>
       validation:
         type: string
     outputs:
+    - name: Object Generator
+      description: Container generator. Wire into a Procedural Scene's Container Generator input (or any Object Generators port if you want to treat it as a generic placed object).
     - name: Container Generator
-      description: Object generator
+      description: Legacy alias for Object Generator; kept so graphs authored before the 2026-05 port-name unification (commit e3082df) still load. Prefer Object Generator on new graphs. Both ports emit the same value.
     tooltip: Container factory
     category: Objects
-    subcategory: Generators
-    color: "#246BB3"
+    subcategory: Scene Props
+    color: "#2472B3"
 
   FloorNode:
     alias: Floor
+    help: toybox/FloorNode.md
     inputs:
     - name: Floor Type
       description: Type of floor the container sits on
       select:
         - <random>
+        - Plane Floor
         - Tile
         #- Wood
         - Hardwood
@@ -123,8 +110,11 @@ schemas:
       validation:
         type: string
     outputs:
+    - name: Object Generator
+      description: Floor generator. Wire into a Procedural Scene's Floor Generator input (or any Object Generators port if you want to treat it as a generic placed object).
     - name: Floor Generator
-      description: Object generator
+      description: Legacy alias for Object Generator; kept so graphs authored before the 2026-05 port-name unification (commit e3082df) still load. Prefer Object Generator on new graphs. Both ports emit the same value.
+    tooltip: Floor factory
     category: Objects
-    subcategory: Generators
-    color: "#246BB3"
+    subcategory: Scene Props
+    color: "#2472B3"

@@ -1,0 +1,27 @@
+schemas:
+  Warp:
+    alias: Warp
+    help: toybox/Warp.md
+    inputs:
+    - name: Warp Strength
+      default: 50
+      description: Level of object warping from 0 (no warping) to 100 (heavily warped).
+      validation:
+        oneOf:
+          - type: number
+            minimum: 0
+            maximum: 100
+          - numLinks: one
+    - name: Generator
+      description: Upstream object generator(s) to be warped
+      validation:
+        numLinks: oneOrMany
+    outputs:
+    - name: Object Generator
+      description: Warp-deformed object generator. Wire into any Object Generators port the same way as a raw generator.
+    - name: Generator
+      description: Legacy alias for Object Generator; kept so graphs authored before the 2026-05 port-name unification (commit e3082df) still load. Prefer Object Generator on new graphs. Both ports emit the same value.
+    tooltip: Warp object geometry using random 3x3x3 lattice deformation.
+    category: Objects
+    subcategory: Object Modifiers
+    color: "#2472B3"

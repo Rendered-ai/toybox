@@ -130,64 +130,80 @@ class PlayDohObject(ToyboxChannelObject):
             raise
 
 
-class BubblesNode(Node):
+# Display name (as it appears in the `Toy Type` / `Fruit Type` select) -> (AnaObject subclass,
+# package.yml object name). The subclass supplies the `color()` override for materials-aware
+# recolouring; entries that fall back to plain `ToyboxChannelObject` have no per-material hook.
+# To add a new asset: add a row to `package.yml`, add an entry to the appropriate registry,
+# and add the display name to the matching `select:` list in `object_generators.yml` -- no new
+# node class required.
+_TOY_REGISTRY = {
+    "Bubbles":      (BubblesObject,       "BubbleBottle"),
+    "Yo-yo":        (YoyoObject,          "YoYo"),
+    "Skateboard":   (SkateboardObject,    "Skateboard"),
+    "Playdough":    (PlayDohObject,       "PlayDough"),
+    "Rubik's Cube": (ToyboxChannelObject, "Cube"),
+    "Mix Cube":     (ToyboxChannelObject, "Mix Cube"),
+}
+
+_FRUIT_REGISTRY = {
+    "Apple":  (ToyboxChannelObject, "Apple"),
+    "Orange": (ToyboxChannelObject, "Orange"),
+}
+
+
+def _resolve_random(input_name, port_name, self):
+    """Read a `<random>`-capable select input and return the concrete display name.
+
+    Mirrors the Container / Floor pattern: reads the raw port value, and if it is `<random>`,
+    samples uniformly from the port's `select:` list (excluding `<random>` itself).
     """
-    A class to represent the Bubbles node, a node that instantiates a generator for the Bubbles object.
+    value = self.inputs[input_name][0]
+    if value == "<random>":
+        select_list = [portdef["select"] for portdef in self.schema["inputs"] if
+                       portdef.get('name') == port_name][0]
+        choices = [t for t in select_list if t != "<random>"]
+        value = ctx.random.choice(choices)
+    return value
+
+
+class ToyNode(Node):
     """
-
-    def exec(self):
-        logger.info("Executing {}".format(self.name))
-        return {"Bubbles Bottle Generator": get_blendfile_generator("toybox", BubblesObject, "BubbleBottle")}
-
-
-class YoyoNode(Node):
-    """
-    A class to represent the Yoyo node, a node that instantiates a generator for the Yoyo object.
-    """
-
-    def exec(self):
-        logger.info("Executing {}".format(self.name))
-        return {"Yoyo Generator": get_blendfile_generator("toybox", YoyoObject, "YoYo")}
-
-
-class SkateboardNode(Node):
-    """
-    A class to represent the Skateboard node, a node that instantiates a generator for the Skateboard object.
-    """
-
-    def exec(self):
-        logger.info("Executing {}".format(self.name))
-        return {"Skateboard Generator": get_blendfile_generator("toybox", SkateboardObject, "Skateboard")}
-
-
-class PlayDohNode(Node):
-    """
-    A class to represent the PlayDoh node, a node that instantiates a generator for the PlayDough object.
-    """
-
-    def exec(self):
-        logger.info("Executing {}".format(self.name))
-        return {"Play Dough Generator": get_blendfile_generator("toybox", PlayDohObject, "PlayDough")}
-
-
-class RubikNode(Node):
-    """
-    A class to represent the Rubik node, a node that instantiates a generator for the Cube object.
+    A class to represent the Toy node, a single factory node for every toy declared in
+    `_TOY_REGISTRY`. Replaces the previous per-toy nodes (Bubbles / Yo-yo / Skateboard /
+    Playdough / Rubik's Cube / Mix Cube).
     """
 
     def exec(self):
         logger.info("Executing {}".format(self.name))
-        return {"Rubik's Cube Generator": get_blendfile_generator("toybox", ToyboxChannelObject, "Cube")}
+
+        try:
+            toy_type = _resolve_random("Toy Type", "Toy Type", self)
+            cls, obj_name = _TOY_REGISTRY[toy_type]
+        except Exception as e:
+            logger.error("{} in \"{}\": \"{}\"".format(type(e).__name__, type(self).__name__, e).replace("\n", ""))
+            raise
+
+        return {"Object Generator": get_blendfile_generator("toybox", cls, obj_name)}
 
 
-class MixedRubikNode(Node):
+class FruitNode(Node):
     """
-    A class to represent the MixedRubik node, a node that instantiates a generator for the Mix Cube object.
+    A class to represent the Fruit node, a single factory node for every fruit prop declared
+    in `_FRUIT_REGISTRY`. Exposes the Apple / Orange fruit props (previously declared in
+    `package.yml` but not reachable from any node).
     """
 
     def exec(self):
         logger.info("Executing {}".format(self.name))
-        return {"Mixed Cube Generator": get_blendfile_generator("toybox", ToyboxChannelObject, "Mix Cube")}
+
+        try:
+            fruit_type = _resolve_random("Fruit Type", "Fruit Type", self)
+            cls, obj_name = _FRUIT_REGISTRY[fruit_type]
+        except Exception as e:
+            logger.error("{} in \"{}\": \"{}\"".format(type(e).__name__, type(self).__name__, e).replace("\n", ""))
+            raise
+
+        return {"Object Generator": get_blendfile_generator("toybox", cls, obj_name)}
 
 
 class ContainerNode(Node):
@@ -207,13 +223,14 @@ class ContainerNode(Node):
                                portdef.get('name') == "Container Type"][0]
                 select_list.remove("<random>")
                 box_type = ctx.random.choice(select_list)
-                while box_type in ['Tall Basket', 'Short Basket']:
-                    box_type = ctx.random.choice(select_list)
         except Exception as e:
             logger.error("{} in \"{}\": \"{}\"".format(type(e).__name__, type(self).__name__, e).replace("\n", ""))
             raise
 
-        return {"Container Generator": get_blendfile_generator("toybox", AnaObject, box_type)}
+        generator = get_blendfile_generator("toybox", ToyboxChannelObject, box_type)
+        # Emit under both keys: `Object Generator` is the current unified name (2026-05 refactor);
+        # `Container Generator` is the legacy alias kept so pre-refactor graphs still load.
+        return {"Object Generator": generator, "Container Generator": generator}
 
 
 class FloorNode(Node):
@@ -236,4 +253,7 @@ class FloorNode(Node):
             logger.error("{} in \"{}\": \"{}\"".format(type(e).__name__, type(self).__name__, e).replace("\n", ""))
             raise
 
-        return {"Floor Generator": get_blendfile_generator("toybox", AnaObject, floor_type)}
+        generator = get_blendfile_generator("toybox", ToyboxChannelObject, floor_type)
+        # Emit under both keys: `Object Generator` is the current unified name (2026-05 refactor);
+        # `Floor Generator` is the legacy alias kept so pre-refactor graphs still load.
+        return {"Object Generator": generator, "Floor Generator": generator}

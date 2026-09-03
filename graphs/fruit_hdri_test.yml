@@ -1,0 +1,117 @@
+# fruit_hdri_test.yml
+#
+# Workflow: Procedural Scene composition with HDRI-only lighting and no
+# Floor. Showcases:
+#   * Multiple Object Generators (Fruit x2) feeding one Random Placement
+#     for a non-overlapping scatter with mixed classes.
+#   * Procedural Scene with the HDRI ground reading through as the
+#     "floor" (no Floor node) -- avoids the white-Floor-patch clash
+#     seen when a Floor overlays a photographic HDRI.
+#   * Outdoor Camera vs Parameterized Camera trade-off: this graph uses
+#     Parameterized for exact overhead framing; Outdoor Camera would
+#     also work with `Camera Angle: Overhead`.
+#   * Per-run HDRI azimuth randomization so the sun angle varies across
+#     the dataset even with one HDRI file.
+#
+# Framing note: HDRIs project onto an infinite skybox and have no ground
+# mesh, so scattered objects don't cast shadows on the grass. Two
+# mitigations:
+#   1. Random Placement's Center Z is slightly below origin so each
+#      fruit's bottom dips into the imagined ground surface.
+#   2. Camera is straight down and close (1.0 m) so fruit fills the
+#      frame -- grass is proportional, not overwhelming.
+nodes:
+  VolumeFile_HDRI:
+    nodeClass: VolumeFile
+    name: VolumeFile_HDRI
+    links: {}
+    values:
+      File: "708b0ca9-d81c-4679-b164-141418507830:/HDRIs/Poly Haven/Clear/noon_grass_4k.hdr"
+    location: {x: 0, y: 0}
+
+  Apple_1:
+    links: {}
+    name: Apple_1
+    nodeClass: Fruit
+    values:
+      Fruit Type: Apple
+    location: {x: 0, y: 400}
+
+  Orange_1:
+    links: {}
+    name: Orange_1
+    nodeClass: Fruit
+    values:
+      Fruit Type: Orange
+    location: {x: 0, y: 800}
+
+  RandomHDRIRotation:
+    nodeClass: Random Uniform
+    name: RandomHDRIRotation
+    links: {}
+    values:
+      low: 0.0
+      high: 360.0
+    location: {x: 500, y: 0}
+
+  Random Placement_1:
+    links:
+      Object Generators:
+        - outputPort: Object Generator
+          sourceNode: Apple_1
+        - outputPort: Object Generator
+          sourceNode: Orange_1
+    name: Random Placement_1
+    nodeClass: Random Placement
+    values:
+      Number of Objects: 12
+      Center (m): "[0.0, 0.0, -0.02]"
+      Scatter Radius: 0.6
+    location: {x: 500, y: 600}
+
+  Camera_1:
+    links: {}
+    name: Camera_1
+    nodeClass: Parameterized Camera
+    values:
+      Camera X: 0.0
+      Camera Y: 0.0
+      Camera Z: 1.0
+      Look At X: 0.0
+      Look At Y: 0.0
+      Look At Z: 0.0
+      Focal Length (mm): 35.0
+    location: {x: 1000, y: 1077}
+
+  Scene_1:
+    links:
+      Placed Objects:
+        - outputPort: Objects of Interest
+          sourceNode: Random Placement_1
+      HDRI:
+        - outputPort: File
+          sourceNode: VolumeFile_HDRI
+      HDRI Rotation (deg):
+        - outputPort: out
+          sourceNode: RandomHDRIRotation
+      Camera:
+        - outputPort: Camera
+          sourceNode: Camera_1
+    name: Scene_1
+    nodeClass: Procedural Scene
+    values: {}
+    location: {x: 1500, y: 400}
+
+  Render_1:
+    links:
+      Scene:
+        - outputPort: Scene
+          sourceNode: Scene_1
+    name: Render_1
+    nodeClass: Render
+    values:
+      Calculate Obstruction: F
+      Save Blend File: Enabled
+    location: {x: 2000, y: 400}
+
+version: 2

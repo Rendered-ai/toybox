@@ -1,0 +1,84 @@
+# Copyright 2019-2022 DADoES, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License in the root directory in the "LICENSE" file or at:
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+schemas:
+  SpatialClusterClass:
+    alias: Spatial Cluster
+    help: toybox/SpatialCluster.md
+    inputs:
+    - name: Object Generators
+      description: One or more upstream object generators (Yo-yo, Playdough, etc).
+      validation:
+        numLinks: oneOrMany
+    - name: Number of Objects
+      description: Total number of objects to place in the cluster.
+      default: 10
+      validation:
+        oneOf:
+          - type: integer
+            minimum: 1
+            maximum: 1000
+          - numLinks: one
+    - name: Center (m)
+      description: >-
+        World-space XYZ centre of the cluster. The Z component is used as
+        the fixed elevation for every placed object -- a small positive
+        value is recommended when a Floor is in the scene. Type
+        "[x, y, z]" or wire a Vector3D node (which can itself be fed by
+        Random Uniform / Random Normal nodes for jittered scenes).
+      default: "[0.0, 0.0, 0.05]"
+      validation:
+        oneOf:
+          - numLinks: one
+          - type: string
+            pattern: '^\s*\[[^\]]*\]\s*$'
+    - name: Radius
+      description: Maximum distance from the center at which objects may be placed (meters). Default is toybox-toy scale.
+      default: 0.5
+      validation:
+        oneOf:
+          - type: number
+            minimum: 0.01
+          - numLinks: one
+    - name: Object Spacing (m)
+      description: Minimum distance between placed objects for collision avoidance. Used only when Allow Overlap is Disabled.
+      default: 0.08
+      validation:
+        oneOf:
+          - type: number
+            minimum: 0.001
+          - numLinks: one
+    - name: Pattern Type
+      description: Spatial distribution pattern. Random scatters inside the disc; Circular places on a ring (or concentric rings when needed); Hexagonal places on a hex-packed grid clipped to the disc.
+      default: Random
+      select:
+        - Random
+        - Circular
+        - Hexagonal
+      validation:
+        type: string
+    - name: Allow Overlap
+      description: When Disabled, Object Spacing is enforced as the minimum center-to-center distance between placed objects.
+      default: Disabled
+      select:
+        - Disabled
+        - Enabled
+      validation:
+        type: string
+    outputs:
+    - name: Objects of Interest
+      description: Placed objects, ready to feed into the Scene aggregator.
+    tooltip: Deterministically place objects in a disc using Random, Circular, or Hexagonal patterns. No physics; for physics piles use Random Placement instead.
+    category: Scenes
+    subcategory: Placement
+    color: "#B3B324"

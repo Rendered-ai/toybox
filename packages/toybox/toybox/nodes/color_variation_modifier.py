@@ -40,4 +40,6 @@ class ColorVariationModifier(Node):
             logger.error("{} in \"{}\": \"{}\"".format(type(e).__name__, type(self).__name__, e).replace("\n", ""))
             raise
 
-        return {"Generator": generator}
+        # Emit under both keys: `Object Generator` is the current unified name (2026-05 refactor);
+        # `Generator` is the legacy alias kept so pre-refactor graphs still load.
+        return {"Object Generator": generator, "Generator": generator}

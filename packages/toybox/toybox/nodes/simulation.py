@@ -16,6 +16,8 @@ import mathutils
 import anatools.lib.context as ctx
 from anatools.lib.node import Node
 from anatools.lib.scene import AnaScene
+
+from toybox.lib.parsers import parse_vec3
 import logging
 import imageio
 import math
@@ -39,54 +41,30 @@ class LightNode(Node):
         lightEnergy = float(self.inputs["Radiant Power (W)"][0])
         lightData = bpy.data.lights.new(lightName, type=lightType)
         lightData.energy = lightEnergy
+
+        # Color: shared by Spot and Point. Accepts "[r, g, b]" string or a
+        # wired Vector3D / 3-element array. Channels are clamped at 0
+        # because negative emission is not physical; values above 1.0 are
+        # allowed (Blender lets you over-saturate a colour to amplify a
+        # hue while keeping Radiant Power separate).
+        lightColor = parse_vec3(self.inputs["Color"][0], name="Color", node="Light")
+        lightData.color = tuple(max(0.0, c) for c in lightColor)
+
         logging.info("Light Config.. \n" + '\n'.join([f'\t{k}: {getattr(lightData, k)}' for k in dir(lightData) if '__' not in k]))
 
         #Instantiate the light
-        lightLocation = self.inputs["Location (m)"][0]
-        if type(lightLocation)==str:
-            lightLocation = [float(v) for v in lightLocation.replace('[','').replace(']','').split(',')]
-        
+        lightLocation = parse_vec3(self.inputs["Location (m)"][0], name="Location (m)", node="Light")
+
         lightObject = bpy.data.objects.new(lightName, lightData)
         lightObject.location = lightLocation
-        
-        #Point the light at the center (for spot lights)
-        point_at(lightObject, mathutils.Vector((0,0,0)))
+
+        # Direction matters only for Spot. For Point, Blender ignores rotation,
+        # so we skip the point_at call and save the math.
+        if lightType == "SPOT":
+            target = parse_vec3(self.inputs["Target (m)"][0], name="Target (m)", node="Light")
+            point_at(lightObject, mathutils.Vector(target))
 
         return {'Light': lightObject}
-
-
-class CameraNode(Node):
-    """
-    A class to represent a the Camera node, a node that crates a camera in the scene.
-    """
-
-    def exec(self):
-        """Execute node"""
-        logger.info("Executing {}".format(self.name))
-        
-        #Set up camera configuration data
-        cameraName = self.name
-        cameraData = bpy.data.cameras.new(cameraName)
-        logging.info("Camera Config.. \n" + '\n'.join([f'\t{k}: {getattr(cameraData, k)}' for k in dir(cameraData) if '__' not in k]))
-        
-        #Instantiate the camera object
-        cameraObject = bpy.data.objects.new(cameraName, cameraData)
-        
-        # Set the camera location - constrained to an altitude angle > 45 degrees
-        height = float(self.inputs["Location Height (m)"][0])
-        height_limits = (0.4, 0.7)
-        if height == "<random>":
-            height = ctx.random.uniform(height_limits[0], height_limits[1])
-        x = ctx.random.uniform(0, height)
-        y_limit = math.sqrt(height**2 - x**2)
-        y=ctx.random.uniform(-y_limit, y_limit)
-        cameraObject.location = (x, y, height)
-        
-        #Set the camera rotation
-        roll = self.inputs["Roll (degrees)"][0]
-        point_at(cameraObject, (0,0,0), roll=roll*3.14/180)
-        
-        return {'Camera': cameraObject}
 
 
 class RenderNode(Node):
@@ -97,45 +75,39 @@ class RenderNode(Node):
 
     def exec(self):
         """Execute node"""
-        #return {}  # testing the time to bake the physics
-        logger.info("Executing {}".format(self.name))
+        logger.info("Executing %s", self.name)
 
         #Get the reference to the blender scene
         scn = bpy.context.scene
 
-        #We do not expect more than one DropObjects node to be ported to here, but the input is still a list.
-        objects = self.inputs["Objects of Interest"][0]
+        scene_input = self.inputs.get("Scene", [""]) or [""]
+        upstream_scene = scene_input[0] if scene_input and scene_input[0] not in ("", None) else None
+        if upstream_scene is None:
+            raise RuntimeError(
+                "RenderNode requires a wired Scene input (from a Blend File Scene "
+                "or Procedural Scene node)."
+            )
 
-        #Add lighting to the scene
-        lights = self.inputs["Lights"]
-        if lights[0] != "":
-            for l in lights:
-                scn.collection.objects.link(l)
-        #bpy.context.scene.world.light_settings.use_ambient_occlusion = True
-
-        #Add a camera to the scene
-        camera = self.inputs["Camera"][0]
-        scn.collection.objects.link(camera)
-        scn.camera = camera
+        # Camera is set by the upstream scene node (scn.camera = cam_obj).
+        # Blender API: the active camera is a scene-space concern, not render-time.
+        if scn.camera is None:
+            raise RuntimeError(
+                "RenderNode: scn.camera is not set. Ensure the Scene node has a "
+                "Camera wired (Blend File Scene) or is using the built-in Look Down "
+                "camera (Procedural Scene)."
+            )
 
         #Set the render resolution
         # Set up the camera configuration data
-        
         res = self.inputs["Resolution (px)"][0]
         if type(res)==str:
             res = [int(v) for v in res.replace('[','').replace(']','').split(',')]
         scn.render.resolution_x = res[0]
         scn.render.resolution_y = res[1]
-        #bpy.ops.object.visual_transform_apply()
-
-        #Initialize an AnaScene.  This configures the Blender compositor and provides object annotations and metadata.
-        #To create an AnaScene we need to send a blender scene and a view layer for annotations
         sensor_name = 'RGBCamera'
-        scene = AnaScene(
-            blender_scene=scn,
-            annotation_view_layer=bpy.context.view_layer,
-            objects=objects,
-            sensor_name=sensor_name)
+        scene = upstream_scene
+        objects = scene.objects
+        logger.info("RenderNode: using upstream Scene with %d objects", len(objects))
 
         #Configure the compositor to include a denoise node for the image
         s = bpy.data.scenes[ctx.channel.name]
@@ -149,8 +121,38 @@ class RenderNode(Node):
         compositeNodeFieldName = f'{ctx.interp_num:010}-#-{sensor_name}.png'
         c_of.file_slots.new(compositeNodeFieldName)
         s.node_tree.links.new(c_rl.outputs['Image'], c_dn.inputs['Image'])
-        s.node_tree.links.new(c_dn.outputs['Image'], c_c.inputs['Image'])
-        s.node_tree.links.new(c_dn.outputs['Image'], c_of.inputs[compositeNodeFieldName])
+
+        _blur_px = float(bpy.context.scene.get("hdri_blur_px", 0.0) or 0.0)
+        if _blur_px > 0.0:
+            c_blur = s.node_tree.nodes.new('CompositorNodeBlur')
+            c_blur.filter_type = 'GAUSS'
+            # size_x/y are int pixels; the Size input scales at runtime for sub-px.
+            c_blur.size_x = 1
+            c_blur.size_y = 1
+            c_blur.inputs['Size'].default_value = _blur_px
+            s.node_tree.links.new(c_dn.outputs['Image'], c_blur.inputs['Image'])
+            s.node_tree.links.new(c_blur.outputs['Image'], c_c.inputs['Image'])
+            s.node_tree.links.new(c_blur.outputs['Image'], c_of.inputs[compositeNodeFieldName])
+        else:
+            s.node_tree.links.new(c_dn.outputs['Image'], c_c.inputs['Image'])
+            s.node_tree.links.new(c_dn.outputs['Image'], c_of.inputs[compositeNodeFieldName])
+
+        # Gated debug blend dump: saves the full .blend to output/test/ immediately
+        # before rendering so the user can open it in Blender to verify light,
+        # camera, and object placement.  Activated by:
+        #   - graph input  "Save Blend File" == "Enabled", OR
+        #   - environment  TOYBOX_SAVE_DEBUG_BLEND=1
+        _dump_blend = self.inputs.get("Save Blend File", ["Disabled"])[0]
+        if _dump_blend == "Enabled" or os.environ.get("TOYBOX_SAVE_DEBUG_BLEND", "0") == "1":
+            _test_dir = os.path.join(ctx.output, "test")
+            os.makedirs(_test_dir, exist_ok=True)
+            _blend_path = os.path.join(
+                _test_dir,
+                f"{ctx.interp_num:010}-{scn.frame_current}-debug.blend",
+            )
+            bpy.context.preferences.filepaths.save_version = 0
+            bpy.ops.wm.save_as_mainfile(filepath=_blend_path)
+            logger.info("RenderNode: debug blend saved -> %s", _blend_path)
 
         #Render the image
         if ctx.preview:
@@ -166,10 +168,15 @@ class RenderNode(Node):
 
         #Prepare for annotataions
         for obj in objects:
-            obj.setup_mask()
+            # Scene objects that aren't toybox objects-of-interest (e.g. a Floor
+            # or Container wired as a Placed Object) may not implement the mask
+            # hook; skip them rather than crash the run.
+            if hasattr(obj, "setup_mask"):
+                obj.setup_mask()
         
         collect_depth = self.inputs["Collect Depth and Normal Masks"][0]
-        if collect_depth == 'T':
+        # Accept legacy 'T'/'F' as well as the new Enabled/Disabled convention.
+        if collect_depth in ('Enabled', 'T'):
             #Configure compositor to write a depth and normal mask
             #Add the Z and normal pass veiw layers
             bpy.context.scene.view_layers["ViewLayer"].use_pass_z = True
@@ -207,8 +214,9 @@ class RenderNode(Node):
         # c_of.file_slots.new(f'{ctx.interp_num:010}-#-{sensor_name}.png')
         # s.node_tree.links.new(c_dn.outputs[0], c_of.inputs[0])
 
-        calculate_obstruction = self.inputs["Calculate Obstruction"][0]        
-        if calculate_obstruction == 'F':
+        calculate_obstruction = self.inputs["Calculate Obstruction"][0]
+        # Accept legacy 'T'/'F' as well as the new Enabled/Disabled convention.
+        if calculate_obstruction in ('Disabled', 'F'):
             # Create annotations 
             scene.write_ana_annotations()
             scene.write_ana_metadata()
@@ -267,7 +275,9 @@ class RenderNode(Node):
             links.remove(masknode.outputs[0].links[0])
 
         #Create annotations
-        scene.write_ana_annotations(calculate_obstruction=calculate_obstruction)
+        # Normalise to legacy 'T'/'F' for downstream anatools annotation API.
+        _obstruction_flag = 'T' if calculate_obstruction in ('Enabled', 'T') else 'F'
+        scene.write_ana_annotations(calculate_obstruction=_obstruction_flag)
         scene.write_ana_metadata()
 
         logging.info("Number Objects Rendered: {}".format(len([o for o in objects if o.rendered])))
@@ -283,26 +293,191 @@ class RenderNode(Node):
         return {}
 
 
-def render(resolution='high'):
-    if resolution == 'preview':
-        if bpy.context.scene.render.resolution_x >1000:
-            # For speed, set the resolution to a common multiple of the tile size
-            bpy.context.scene.render.resolution_x = 640
-            bpy.context.scene.render.resolution_y = 384
+class AnimationRenderNode(Node):
+    """Render a frame range for an animated scene.
 
-        bpy.context.scene.cycles.samples = 8
-        bpy.context.scene.cycles.max_bounces = 6
+    Iterates ``Start Frame`` → ``End Frame`` (inclusive) by ``Frame Step``,
+    calling the Blender renderer once per frame.  Each frame produces:
+
+    - ``images/{interp_num:010}-{frame}-RGBCamera.png``
+    - ``annotations/{interp_num:010}-{frame}-RGBCamera.json``
+    - ``metadata/{interp_num:010}-{frame}-RGBCamera.json``
+    - ``masks/`` depth + normal if ``Collect Depth and Normal Masks`` is T
+
+    Wire: ``Blend File Scene → Animation Render`` (same as ``Render``).
+    The upstream scene must have an NLA animation strip active on the armature
+    (supplied by the ``Animation`` node) for poses to change per frame.
+    """
+
+    def exec(self):
+        logger.info("Executing %s", self.name)
+
+        scn = bpy.context.scene
+
+        scene_input = self.inputs.get("Scene", [""]) or [""]
+        upstream_scene = scene_input[0] if scene_input and scene_input[0] not in ("", None) else None
+        if upstream_scene is None:
+            raise RuntimeError(
+                "AnimationRenderNode requires a wired Scene input."
+            )
+        if scn.camera is None:
+            raise RuntimeError(
+                "AnimationRenderNode: scn.camera is not set. Wire a Camera into "
+                "the upstream Scene node."
+            )
+
+        res = self.inputs["Resolution (px)"][0]
+        if isinstance(res, str):
+            res = [int(v) for v in res.replace("[", "").replace("]", "").split(",")]
+        scn.render.resolution_x = res[0]
+        scn.render.resolution_y = res[1]
+
+        start  = int(float(self.inputs.get("Start Frame",  [1])[0]))
+        end    = int(float(self.inputs.get("End Frame",   [30])[0]))
+        step   = int(float(self.inputs.get("Frame Step",   [1])[0]))
+        step   = max(1, step)
+
+        collect_depth = self.inputs.get("Collect Depth and Normal Masks", ["F"])[0]
+
+        _dump_blend = self.inputs.get("Save Blend File", ["Disabled"])[0]
+
+        sensor_name = "RGBCamera"
+        scene = upstream_scene
+        objects = scene.objects
+
+        for directory in ("images", "annotations", "masks", "metadata"):
+            os.makedirs(os.path.join(ctx.output, directory), exist_ok=True)
+
+        # Build compositor output nodes once (they use # as frame placeholder).
+        s = bpy.data.scenes[ctx.channel.name]
+        c_rl = s.node_tree.nodes["Render Layers"]
+        c_c  = s.node_tree.nodes["Composite"]
+
+        # Remove legacy imgout if present (Blend File Scene may leave one).
+        if "imgout" in s.node_tree.nodes:
+            s.node_tree.nodes.remove(s.node_tree.nodes["imgout"])
+
+        c_dn = s.node_tree.nodes.new("CompositorNodeDenoise")
+        c_of = s.node_tree.nodes.new("CompositorNodeOutputFile")
+        c_of.base_path = os.path.join(ctx.output, "images")
+        c_of.file_slots.clear()
+        img_slot = f"{ctx.interp_num:010}-#-{sensor_name}.png"
+        c_of.file_slots.new(img_slot)
+        s.node_tree.links.new(c_rl.outputs["Image"], c_dn.inputs["Image"])
+        s.node_tree.links.new(c_dn.outputs["Image"], c_c.inputs["Image"])
+        s.node_tree.links.new(c_dn.outputs["Image"], c_of.inputs[img_slot])
+
+        if collect_depth == "T":
+            bpy.context.scene.view_layers["ViewLayer"].use_pass_z = True
+            bpy.context.scene.view_layers["ViewLayer"].use_pass_normal = True
+            c_norm = s.node_tree.nodes.new("CompositorNodeNormalize")
+            c_depth_out = s.node_tree.nodes.new("CompositorNodeOutputFile")
+            c_depth_out.base_path = os.path.join(ctx.output, "masks")
+            c_depth_out.file_slots.clear()
+            depth_slot = f"{ctx.interp_num:010}-#-{sensor_name}-depth.png"
+            c_depth_out.file_slots.new(depth_slot)
+            s.node_tree.links.new(c_rl.outputs["Depth"], c_norm.inputs["Value"])
+            s.node_tree.links.new(c_norm.outputs["Value"], c_depth_out.inputs[depth_slot])
+            c_normal_out = s.node_tree.nodes.new("CompositorNodeOutputFile")
+            c_normal_out.base_path = os.path.join(ctx.output, "masks")
+            c_normal_out.file_slots.clear()
+            normal_slot = f"{ctx.interp_num:010}-#-{sensor_name}-normal.png"
+            c_normal_out.file_slots.new(normal_slot)
+            s.node_tree.links.new(c_rl.outputs["Normal"], c_normal_out.inputs[normal_slot])
+
+        logger.info(
+            "AnimationRender: frames %d→%d step=%d res=%dx%d",
+            start, end, step, res[0], res[1],
+        )
+
+        frames = list(range(start, end + 1, step))
+
+        for i, frame in enumerate(frames):
+            scn.frame_set(frame)
+            logger.info(
+                "AnimationRender: set frame %d → scn.frame_current=%d (%d/%d)",
+                frame, scn.frame_current, i + 1, len(frames),
+            )
+
+            # Save debug blend on the first frame only.
+            if i == 0 and (
+                _dump_blend == "Enabled"
+                or os.environ.get("TOYBOX_SAVE_DEBUG_BLEND", "0") == "1"
+            ):
+                _test_dir = os.path.join(ctx.output, "test")
+                os.makedirs(_test_dir, exist_ok=True)
+                _blend_path = os.path.join(
+                    _test_dir,
+                    f"{ctx.interp_num:010}-{frame}-anim-debug.blend",
+                )
+                bpy.context.preferences.filepaths.save_version = 0
+                bpy.ops.wm.save_as_mainfile(filepath=_blend_path)
+                logger.info("AnimationRender: debug blend saved -> %s", _blend_path)
+
+            if ctx.preview:
+                render(resolution="preview")
+                img_filename = f"{ctx.interp_num:010}-{scn.frame_current}-{sensor_name}.png"
+                preview_src = os.path.join(ctx.output, "images", img_filename)
+                if os.path.exists(preview_src):
+                    import shutil
+                    shutil.copy(preview_src, os.path.join(ctx.output, "preview.png"))
+                return {}
+
+            render()
+
+            for obj in objects:
+                if hasattr(obj, "setup_mask"):
+                    obj.setup_mask()
+
+            if collect_depth == "T":
+                s2 = bpy.data.scenes[ctx.channel.name]
+                c_of2 = s2.node_tree.nodes.get("File Output")
+                if c_of2:
+                    c_of2.file_slots.clear()
+                render(resolution="masks")
+
+            img_filename = f"{ctx.interp_num:010}-{scn.frame_current}-{sensor_name}.png"
+            scene.filename = img_filename
+            scene.write_ana_annotations()
+            scene.write_ana_metadata()
+            logger.info("AnimationRender: frame %d annotated → %s", frame, img_filename)
+
+        logger.info("AnimationRender: done — %d frame(s) rendered", len(frames))
+        return {}
+
+
+def render(resolution='high'):
+    scn = bpy.context.scene
+    # Blender 4.x defaults on; would override explicit samples below.
+    scn.cycles.use_adaptive_sampling = False
+
+    hdri_mode = bool(scn.get("hdri_scene_mode", False))
+    if hdri_mode:
+        scn.cycles.use_denoising = True
+        scn.cycles.denoiser = 'OPENIMAGEDENOISE'
+
+    if resolution == 'preview':
+        if scn.render.resolution_x > 1000:
+            # For speed, set the resolution to a common multiple of the tile size
+            scn.render.resolution_x = 640
+            scn.render.resolution_y = 384
+
+        scn.cycles.samples = 64 if hdri_mode else 8
+        scn.cycles.max_bounces = 6
 
     elif resolution == 'high':
         # Higher samples and bounces diminishes speed for higher quality images
-        bpy.context.scene.cycles.samples = 15
-        bpy.context.scene.cycles.max_bounces = 12
+        scn.cycles.samples = 256 if hdri_mode else 15
+        scn.cycles.max_bounces = 12
 
     else: # masks
-        bpy.context.scene.cycles.samples = 1
-        bpy.context.scene.cycles.max_bounces = 1
+        scn.cycles.samples = 1
+        scn.cycles.max_bounces = 1
 
-    bpy.ops.render.render('INVOKE_DEFAULT')
+    # In Blender 4.2 headless, 'INVOKE_DEFAULT' spawns a modal render that
+    # does not block the script. Use the default EXEC_DEFAULT context with
+    # write_still=True so the call blocks until rendering completes.
+    bpy.ops.render.render(write_still=True)
 
 
 def point_at(obj, target, roll=0):

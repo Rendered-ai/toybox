@@ -1,0 +1,39 @@
+schemas:
+  Scale:
+    alias: Scale
+    help: toybox/Scale.md
+    inputs:
+    - name: Scale X
+      default: 1
+      description: Scaling factor for the X axis
+      validation:
+        oneOf:
+          - type: number
+          - numLinks: one
+    - name: Scale Y
+      default: 1
+      description: Scaling factor for the Y axis
+      validation:
+        oneOf:
+          - type: number
+          - numLinks: one
+    - name: Scale Z
+      default: 1
+      description: Scaling factor for the Z axis
+      validation:
+        oneOf:
+          - type: number
+          - numLinks: one
+    - name: Generator
+      description: Upstream object generator(s) to be scaled
+      validation:
+        numLinks: oneOrMany
+    outputs:
+    - name: Object Generator
+      description: Scale-modified object generator. Wire into any Object Generators port the same way as a raw generator.
+    - name: Generator
+      description: Legacy alias for Object Generator; kept so graphs authored before the 2026-05 port-name unification (commit e3082df) still load. Prefer Object Generator on new graphs. Both ports emit the same value.
+    tooltip: Scale the size of objects produced by an upstream generator.
+    category: Objects
+    subcategory: Object Modifiers
+    color: "#2472B3"

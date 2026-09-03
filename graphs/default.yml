@@ -1,110 +1,228 @@
+# default.yml -- Toys / Container / Physics
+#
+# Workflow: rigid-body physics scene, the toybox channel's original
+# demonstration pattern. Showcases:
+#   * Place Over Container drops objects from above and lets gravity
+#     bake resolve the pile inside the Container Generator.
+#   * Object generator branching -- one Toy stream, several modifiers:
+#     Color Variation randomizes shader colour per instance;
+#     Warp deforms the Rubik's Cube alone;
+#     Weight biases the sampler toward the warped Rubik's Cube.
+#   * Procedural Scene composition -- Container + Floor + Lights + Camera
+#     assembled procedurally (contrast with parking_lot which uses
+#     Blend File Scene to load a pre-authored .blend instead).
+#   * Per-run light variability -- XY jitter + Radiant Power sample
+#     shift highlights and shadow directions each run.
+#   * Outdoor Camera with Camera Angle: <random> -- orbits the look-at
+#     across four named viewpoints per run (Overhead / Side / Corner /
+#     Entrance), providing azimuth variety around the vertical axis.
 nodes:
+  # --- Object generators (column 0) -------------------------------------
   Rubik's Cube_8:
     links: {}
     name: Rubik's Cube_8
-    nodeClass: Rubik's Cube
-    values: {}
+    nodeClass: Toy
+    values:
+      Toy Type: Rubik's Cube
+    location: {x: 0, y: 0}
   Skateboard_6:
     links: {}
     name: Skateboard_6
-    nodeClass: Skateboard
-    values: {}
+    nodeClass: Toy
+    values:
+      Toy Type: Skateboard
+    location: {x: 0, y: 400}
   Yo-yo_5:
     links: {}
     name: Yo-yo_5
-    nodeClass: Yo-yo
-    values: {}
+    nodeClass: Toy
+    values:
+      Toy Type: Yo-yo
+    location: {x: 0, y: 800}
   Playdough_7:
     links: {}
     name: Playdough_7
-    nodeClass: Playdough
-    values: {}
+    nodeClass: Toy
+    values:
+      Toy Type: Playdough
+    location: {x: 0, y: 1200}
   Bubbles_10:
     links: {}
     name: Bubbles_10
-    nodeClass: Bubbles
-    values: {}
-  Weight_12:
+    nodeClass: Toy
+    values:
+      Toy Type: Bubbles
+    location: {x: 0, y: 1600}
+
+  # --- Modifiers (column 1) --------------------------------------------
+  Warp_16:
     links:
       Generator:
-        - outputPort: Generator
-          sourceNode: Color Variation_11
-    name: Weight_12
-    nodeClass: Weight
+        - outputPort: Object Generator
+          sourceNode: Rubik's Cube_8
+    name: Warp_16
+    nodeClass: Warp
     values:
-      Weight: '4'
+      Warp Strength: 35
+    location: {x: 500, y: 0}
   Color Variation_11:
     links:
       Generators:
-        - outputPort: Bubbles Bottle Generator
+        - outputPort: Object Generator
           sourceNode: Bubbles_10
-        - outputPort: Play Dough Generator
+        - outputPort: Object Generator
           sourceNode: Playdough_7
-        - outputPort: Skateboard Generator
+        - outputPort: Object Generator
           sourceNode: Skateboard_6
-        - outputPort: Yoyo Generator
+        - outputPort: Object Generator
           sourceNode: Yo-yo_5
     name: Color Variation_11
     nodeClass: Color Variation
     values:
       Color: <random>
+    location: {x: 500, y: 1000}
+
+  Weight_12:
+    links:
+      Generator:
+        - outputPort: Object Generator
+          sourceNode: Color Variation_11
+    name: Weight_12
+    nodeClass: Weight
+    values:
+      Weight: '4'
+    location: {x: 1000, y: 1000}
+
+  # --- Scene assets (column 2) -----------------------------------------
   Container_3:
     links: {}
     name: Container_3
     nodeClass: Container
     values:
       Container Type: <random>
+    location: {x: 1000, y: 2000}
   Floor_9:
     links: {}
     name: Floor_9
     nodeClass: Floor
     values:
       Floor Type: <random>
-  Light_2:
+    location: {x: 1000, y: 2400}
+
+  # --- Light randomization (column 3-4) --------------------------------
+  # Overhead POINT with per-run variability -- XY jittered +/- 1 m,
+  # Radiant Power 200-500 W (previous fixed 800 W washed toys out).
+  RandomLightX:
+    nodeClass: Random Uniform
+    name: RandomLightX
     links: {}
+    values:
+      low: -1.0
+      high: 1.0
+    location: {x: 1000, y: 2800}
+  RandomLightY:
+    nodeClass: Random Uniform
+    name: RandomLightY
+    links: {}
+    values:
+      low: -1.0
+      high: 1.0
+    location: {x: 1000, y: 3200}
+  RandomLightPower:
+    nodeClass: Random Uniform
+    name: RandomLightPower
+    links: {}
+    values:
+      low: 200.0
+      high: 500.0
+    location: {x: 1000, y: 3600}
+  LightLocation:
+    nodeClass: Vector3D
+    name: LightLocation
+    links:
+      x:
+        - outputPort: out
+          sourceNode: RandomLightX
+      y:
+        - outputPort: out
+          sourceNode: RandomLightY
+    values:
+      z: 2.0
+    location: {x: 1500, y: 3000}
+  Light_2:
+    links:
+      Location (m):
+        - outputPort: Vector
+          sourceNode: LightLocation
+      Radiant Power (W):
+        - outputPort: out
+          sourceNode: RandomLightPower
     name: Light_2
     nodeClass: Light
     values:
-      Location (m): "[0.0, 0.0, 2.0]"
-      Radiant Power (W): 100
-      Type: SPOT
-  50mm Camera_4:
-    links: {}
-    name: 50mm Camera_4
-    nodeClass: 50mm Camera
-    values:
-      Location Height (m): 0.5
-      Roll (degrees): 0
+      Type: POINT
+    location: {x: 2000, y: 3200}
+
+  # --- Placement (column 3) --------------------------------------------
   Place Over Container_0:
     links:
-      Container Generator:
-        - outputPort: Container Generator
-          sourceNode: Container_3
-      Floor Generator:
-        - outputPort: Floor Generator
-          sourceNode: Floor_9
       Object Generators:
-        - outputPort: Rubik's Cube Generator
-          sourceNode: Rubik's Cube_8
+        - outputPort: Object Generator
+          sourceNode: Warp_16
         - outputPort: Generator
           sourceNode: Weight_12
     name: Place Over Container_0
     nodeClass: Place Over Container
     values:
       Number of Objects: 25
-  Render_1:
+    location: {x: 1500, y: 538}
+
+  # --- Camera (column 4) -----------------------------------------------
+  # Outdoor Camera at Camera Angle: <random> orbits the look-at across
+  # four named viewpoints per run (Overhead / Side / Corner / Entrance),
+  # giving azimuth variety around the vertical axis. Distance 1.3 m and
+  # Look At Z=0.2 raise the framing so the full container fits.
+  Camera_1:
+    links: {}
+    name: Camera_1
+    nodeClass: Outdoor Camera
+    values:
+      Camera Angle: <random>
+      Distance to Center (m): 1.3
+      Focal Length (mm): 50.0
+      Look At: "[0, 0, 0.2]"
+    location: {x: 2000, y: 1462}
+
+  # --- Scene aggregator + Render (columns 5-6) -------------------------
+  Procedural Scene_13:
     links:
-      Camera:
-        - outputPort: Camera
-          sourceNode: 50mm Camera_4
+      Placed Objects:
+        - outputPort: Objects of Interest
+          sourceNode: Place Over Container_0
+      Floor Generator:
+        - outputPort: Object Generator
+          sourceNode: Floor_9
+      Container Generator:
+        - outputPort: Object Generator
+          sourceNode: Container_3
       Lights:
         - outputPort: Light
           sourceNode: Light_2
-      Objects of Interest:
-        - outputPort: Objects of Interest
-          sourceNode: Place Over Container_0
+      Camera:
+        - outputPort: Camera
+          sourceNode: Camera_1
+    name: Procedural Scene_13
+    nodeClass: Procedural Scene
+    values: {}
+    location: {x: 2500, y: 1462}
+  Render_1:
+    links:
+      Scene:
+        - outputPort: Scene
+          sourceNode: Procedural Scene_13
     name: Render_1
     nodeClass: Render
     values:
       Calculate Obstruction: F
+    location: {x: 3000, y: 1462}
 version: 2

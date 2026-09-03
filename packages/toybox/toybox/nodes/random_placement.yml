@@ -14,8 +14,10 @@
 schemas:
   PlacementOverContainerClass:
     alias: Place Over Container
+    help: toybox/RandomPlacement.md
     inputs:
     - name: Object Generators
+      description: One or more upstream object generators (Yo-yo, Skateboard, etc).
       validation:
         oneOf:
           - numLinks: oneOrMany
@@ -24,33 +26,47 @@ schemas:
             maxLength: 0
     - name: Number of Objects
       default: 25
+      description: Total number of objects to spawn across all wired generators.
       validation:
         oneOf:
           - type: integer
             minimum: 1
           - numLinks: one
-    - name: Container Generator
-      default: ""
+    - name: Center (m)
+      default: "[0.0, 0.0, 2.0]"
+      description: >-
+        World-space XYZ for the drop zone. X/Y is the column centre;
+        Z is the spawn height (objects are released at this elevation
+        and gravity resolves the stack). Type "[x, y, z]" or wire a
+        Vector3D node.
       validation:
         oneOf:
-          - numLinks: oneOrMany
+          - numLinks: one
           - type: string
-            minLength: 0
-            maxLength: 0
-    - name: Floor Generator
+            pattern: '^\s*\[[^\]]*\]\s*$'
+    - name: Scatter Radius
+      default: 0.05
+      description: Half-extent of the random XY column around the Center (m), in meters. Small values give a tight stack inside a narrow container; larger values spread the pile out. Objects can overlap during placement because gravity will resolve overlaps as they fall.
       validation:
-        numLinks: oneOrMany
+        oneOf:
+          - type: number
+            minimum: 0.0
+            maximum: 1000.0
+          - numLinks: one
     outputs:
     - name: Objects of Interest
-    tooltip:  Create objects, conatainers, and floors and drop the objects into the container.
+      description: Placed objects, ready to feed into the Scene aggregator.
+    tooltip: Drop N objects in a tight Z column over the Center (m) XY; pair with a Scene aggregator that has Settle Physics enabled so gravity stacks them into a pile or container.
     category: Scenes
-    subcategory: Rigid Body
+    subcategory: Placement
     color: "#B3B324"
   
   RandomPlacementClass:
     alias: Random Placement
+    help: toybox/RandomPlacement.md
     inputs:
     - name: Object Generators
+      description: One or more upstream object generators (Yo-yo, Skateboard, etc).
       validation:
         oneOf:
           - numLinks: oneOrMany
@@ -59,25 +75,38 @@ schemas:
             maxLength: 0
     - name: Number of Objects
       default: 25
+      description: Total number of objects to spawn across all wired generators.
       validation:
         oneOf:
           - type: integer
             minimum: 1
           - numLinks: one
-    - name: Container Generator
-      default: ""
+    - name: Center (m)
+      default: "[0.0, 0.0, 2.0]"
+      description: >-
+        World-space XYZ for the scatter region. X/Y is the centre of the
+        XY plane the objects land on; Z is the spawn elevation before
+        physics settles. For Blend File Scene, set this to the spot in
+        your blend you want to drop objects onto. Type "[x, y, z]" or
+        wire a Vector3D node.
       validation:
         oneOf:
-          - numLinks: oneOrMany
+          - numLinks: one
           - type: string
-            minLength: 0
-            maxLength: 0
-    - name: Floor Generator
+            pattern: '^\s*\[[^\]]*\]\s*$'
+    - name: Scatter Radius
+      default: 0.25
+      description: Half-extent of the square XY scatter region around the Center (m), in meters. The node rejection-samples non-overlapping positions inside this region; if it is too small to fit Number of Objects non-overlapping footprints, overflow objects are hidden and a warning is logged.
       validation:
-        numLinks: oneOrMany
+        oneOf:
+          - type: number
+            minimum: 0.0
+            maximum: 1000.0
+          - numLinks: one
     outputs:
     - name: Objects of Interest
-    tooltip:  Create objects, conatainers, and floors and drop the objects randomly.
+      description: Placed objects, ready to feed into the Scene aggregator.
+    tooltip: Lay N objects out flat in a single Z plane with non-overlapping XY footprints. For piles or container fills, use Place Over Container instead.
     category: Scenes
-    subcategory: Rigid Body
+    subcategory: Placement
     color: "#B3B324"

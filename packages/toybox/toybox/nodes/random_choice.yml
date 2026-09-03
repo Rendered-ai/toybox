@@ -1,0 +1,21 @@
+schemas:
+  RandomChoice:
+    alias: Random Choice
+    help: toybox/RandomChoice.md
+    inputs:
+    - name: Options
+      description: JSON-encoded list of options (e.g. ["a","b","c"]) or upstream-linked list to randomly choose from.
+      default: '["a", "b", "c"]'
+      validation:
+        oneOf:
+          - type: string
+          - numLinks: one
+    outputs:
+    - name: Selection
+      description: The randomly chosen value.
+      validation:
+        numLinks: oneOrMany
+    tooltip: Randomly select one option from a list of inputs.
+    category: Graph Control
+    subcategory: Value Generators
+    color: "#EEEEEE"
